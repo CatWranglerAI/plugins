@@ -21,7 +21,7 @@ single-URL router work — see "Production notes" below. Corresponds to
 The repo root is both the marketplace and the single plugin (`source: "./"`):
 
 ```
-plugins/                                 ← repo root (catwranglerai/plugins)
+plugins/                                 ← repo root (github.com/CatWranglerAI/plugins)
 ├── .claude-plugin/
 │   ├── marketplace.json                 ← lists the plugin (source "./")
 │   └── plugin.json                      ← plugin manifest (bundles the MCP server)
