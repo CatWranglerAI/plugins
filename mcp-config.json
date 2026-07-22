@@ -2,7 +2,8 @@
   "mcpServers": {
     "catwrangler": {
       "type": "http",
-      "url": "https://dev.catwrangler.ai/mcp"
+      "url": "https://dev.catwrangler.ai/mcp",
+      "timeout": 600000
     }
   }
 }

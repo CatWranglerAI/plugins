@@ -26,9 +26,10 @@ plugins/                                 ← repo root (catwranglerai/plugins)
 │   ├── marketplace.json                 ← lists the plugin (source "./")
 │   └── plugin.json                      ← plugin manifest (bundles the MCP server)
 ├── mcp-config.json                      ← the CatWrangler MCP server entry
-├── hooks/hooks.json                     ← SessionStart → session-start.mjs
+├── hooks/hooks.json                     ← SessionStart → session-start.sh
+├── scripts/session-start.sh             ← wrapper: reports a missing/broken Node
 ├── scripts/session-start.mjs            ← the hook (injects the bootstrap protocol)
-├── skills/cw-connect/                   ← /cw-connect: manage workspace projects
+├── skills/connect/                      ← /catwrangler:connect: manage workspace projects
 │   ├── SKILL.md
 │   └── scripts/manage.mjs               ← deterministic .catwrangler CRUD
 └── examples/sample.catwrangler          ← what the /connect flow generates
@@ -49,7 +50,14 @@ Test the hook directly without installing:
 
 ```shell
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
-  | node scripts/session-start.mjs
+  | sh scripts/session-start.sh
+```
+
+Simulate a machine without Node (should print an install notice, exit 0):
+
+```shell
+printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
+  | env PATH=/usr/bin:/bin sh scripts/session-start.sh
 ```
 
 ## The `.catwrangler` file
@@ -83,26 +91,48 @@ once MCP is up.
 | Situation | Behavior |
 |---|---|
 | `.catwrangler` present, ≥1 project | Injects the menu + `init_session` instruction; shows the user a one-line notice |
+| Non-interactive run (`claude -p`) | Also supplies an opening turn — connect, then summarize what's new — so a headless session never starts work unconnected. Interactive sessions ignore it; not sent on `clear`/`compact` |
 | `.catwrangler` present, 1 project | Instructs a deterministic connect to that project |
 | `.catwrangler` present, 0 projects | Instructs the model to fetch the list from `init_session` |
 | No `.catwrangler` | **Silent no-op** — safe to install user-global |
 | `.catwrangler` malformed | User-visible notice, no crash |
+| Node.js not on `PATH` | User-visible "install Node 18+" notice + a model-facing note that the bootstrap was skipped; session continues |
+| Node present but the hook errors | Same shape, pointing at `node --version` |
+
+## Requirements
+
+- **Node.js 18+** on `PATH`. The hook and the `/catwrangler:connect` skill are
+  Node scripts. Claude Code itself no longer ships Node, so it may be missing —
+  if it is, both tell you so and the session continues without the project menu.
+- **A POSIX shell.** macOS, Linux, and WSL have one. On Windows, install
+  [Git for Windows](https://git-scm.com/downloads/win); Claude Code uses Git Bash
+  for hooks and for the Bash tool this plugin's skill needs.
+
+**Tool timeout.** `mcp-config.json` sets `"timeout": 600000` (10 minutes) on the
+server entry. Without it, an HTTP MCP server gets a 60-second per-request timer,
+and CatWrangler tools that run a build, a merge, or an LLM gate — `build_deploy`,
+`sandbox_merge`, `await_job`, `register_decision` — routinely exceed that. The
+work still completes on the server when a client gives up, so the symptom is a
+false failure, and retrying a call that actually succeeded can duplicate it.
+Progress notifications do not extend the timer. Note that this value is also a
+floor on the idle timeout, so a genuinely stuck call takes 10 minutes to abort
+rather than the default 5.
 
 **Confinement** is by file-presence: the plugin acts only where a `.catwrangler`
 exists, so a user-global install stays quiet in every other project — no
 directory allowlist needed. (Project-scoped install also works; see Scopes.)
 
-## Managing projects — `/cw-connect`
+## Managing projects — `/catwrangler:connect`
 
 One skill manages this workspace's project menu and connects sessions. Every
 project is **listed** (in `.catwrangler`), **available** (reachable per the
 server), or **connected** (`init_session` called this session).
 
 ```
-/cw-connect                 # interactive hub: show state, then add/remove/connect
-/cw-connect add <slug>      # add a project to .catwrangler (idempotent)
-/cw-connect remove <slug>   # delist from .catwrangler (does not touch sessions)
-/cw-connect connect <slug>  # init_session for that project, then follow protocol
+/catwrangler:connect                 # interactive hub: show state, then add/remove/connect
+/catwrangler:connect add <slug>      # add a project to .catwrangler (idempotent)
+/catwrangler:connect remove <slug>   # delist from .catwrangler (does not touch sessions)
+/catwrangler:connect connect <slug>  # init_session for that project, then follow protocol
 ```
 
 The skill drives all server interaction and the `AskUserQuestion` prompts; the

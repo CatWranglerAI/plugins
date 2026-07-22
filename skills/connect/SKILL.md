@@ -1,9 +1,11 @@
 ---
-description: Manage this workspace's CatWrangler projects — list available and listed, add or remove them from .catwrangler, and connect (init_session). Invoke for "/cw-connect", or when the user wants to add/remove/connect a CatWrangler project in this workspace.
+description: Manage this workspace's CatWrangler projects — list available and listed, add or remove them from .catwrangler, and connect (init_session). Invoke for "/catwrangler:connect", or when the user wants to add/remove/connect a CatWrangler project in this workspace.
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" *)
+argument-hint: "[list|add|remove|connect] [slug]"
+arguments: [verb, slug]
 ---
 
-# /cw-connect — manage CatWrangler projects for this workspace
+# /catwrangler:connect — manage CatWrangler projects for this workspace
 
 You manage which CatWrangler projects this workspace knows about, and can connect
 to one. Every project is in one or more of three states:
@@ -12,13 +14,17 @@ to one. Every project is in one or more of three states:
 - **available** — reachable per the server (this user can access it)
 - **connected** — you have called `init_session` for it in this session
 
-Arguments: `$ARGUMENTS`. `$0` is the verb (`list` | `add` | `remove` | `connect`),
-`$1` is the project slug. No arguments → run the interactive hub.
+Arguments: `$verb` is `list` | `add` | `remove` | `connect`, and `$slug` is the
+project slug. Either may be empty — an empty `$verb` means run the interactive
+hub, and a verb that needs a slug without one means ask which project.
 
 Currently listed projects in this workspace (`.catwrangler`):
 !`node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" list`
 
-## Dispatch on the verb (`$0`)
+## Dispatch on `$verb`
+
+In the verb sections below, `<slug>` is `$slug` when the user supplied one, and
+otherwise the project chosen in the hub or named in conversation.
 
 **No verb — interactive hub:**
 1. Show the listed projects (injected above) with their state.
@@ -39,6 +45,10 @@ available list when you have it:
 node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --name "<name>" --desc "<description>"
 ```
 The script is idempotent (updates in place if already listed). Report the result.
+It fills the file's `server`/`mcp_url` from the endpoint the plugin already
+bundles, so do **not** pass `--server`/`--mcp-url` unless the user names a
+different server — those flags are an override, and a file created without them
+is still complete.
 
 **`remove <slug>`** — delist from `.catwrangler` only; this does not touch any live
 session or server access:
@@ -74,3 +84,9 @@ add/remove/connect, which all work today.
   server access.
 - Never guess a connection target. If several listed/available projects plausibly
   match the user's task, ask which.
+- `manage.mjs` needs Node. If any invocation fails with `node: command not found`
+  (or the injected listing above is a command-not-found error), do not retry or
+  hand-edit `.catwrangler`: tell the user the CatWrangler plugin requires Node 18+
+  on `PATH` (https://nodejs.org, `brew install node`, or `nvm install --lts`) and
+  that the same gap disables the session-start hook. `connect` still works without
+  it — it only calls `init_session`.

@@ -10,7 +10,7 @@
       "name": "catwrangler",
       "source": "./",
       "description": "Connect Claude Code to a CatWrangler workspace: bundles the MCP server and injects a per-project menu + init_session instruction at session start.",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "author": {
         "name": "CatWrangler"
       }

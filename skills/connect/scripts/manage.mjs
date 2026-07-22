@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * .catwrangler CRUD for the /cw-connect skill. Deterministic, no network — the
+ * .catwrangler CRUD for the /catwrangler:connect skill. Deterministic, no network — the
  * model owns all server interaction (listing available, connecting); this script
  * owns only the local file so JSON shape/formatting/dedup are never left to the
  * model.
@@ -15,7 +15,34 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/**
+ * The plugin bundles the MCP server entry, so the endpoint is already known
+ * here — read it rather than making the caller pass --server/--mcp-url. Without
+ * this a file created by `add` gets empty server/mcp_url, and every consumer
+ * falls back to a generic "the CatWrangler MCP server".
+ *
+ * Resolved from this script's own location (skills/connect/scripts → plugin
+ * root), not from an env var, so it holds however the script is invoked.
+ * Returns { server, mcpUrl } with empty strings when it cannot be determined —
+ * this is a convenience default, never a hard requirement.
+ */
+function pluginDefaults() {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const cfg = JSON.parse(readFileSync(join(here, '..', '..', '..', 'mcp-config.json'), 'utf8'));
+    const servers = (cfg && cfg.mcpServers) || {};
+    const entry = servers.catwrangler || servers[Object.keys(servers)[0]];
+    const mcpUrl = (entry && typeof entry.url === 'string' && entry.url) || '';
+    // The manifest's `server` is the origin; `mcp_url` is the endpoint.
+    const server = mcpUrl.replace(/\/mcp\/?$/, '');
+    return { server, mcpUrl };
+  } catch {
+    return { server: '', mcpUrl: '' };
+  }
+}
 
 function parseArgs(argv) {
   const [cmd, ...rest] = argv;
@@ -83,11 +110,15 @@ function main() {
     const slug = val(opts, 'slug');
     if (!slug) fail('add requires --slug');
     let m = load();
-    if (!m) m = { version: 1, server: val(opts, 'server') || '', mcp_url: val(opts, 'mcp-url') || '', projects: [] };
+    if (!m) m = { version: 1, server: '', mcp_url: '', projects: [] };
     if (!Array.isArray(m.projects)) m.projects = [];
-    // Fill top-level server/mcp_url only if currently empty.
-    if (!m.server && val(opts, 'server')) m.server = val(opts, 'server');
-    if (!m.mcp_url && val(opts, 'mcp-url')) m.mcp_url = val(opts, 'mcp-url');
+
+    // Fill top-level server/mcp_url only when currently empty: an explicit flag
+    // wins, otherwise fall back to the endpoint the plugin already bundles.
+    // Also backfills files written before this defaulting existed.
+    const fallback = pluginDefaults();
+    if (!m.server) m.server = val(opts, 'server') || fallback.server;
+    if (!m.mcp_url) m.mcp_url = val(opts, 'mcp-url') || fallback.mcpUrl;
 
     const existing = m.projects.find((p) => p && p.slug === slug);
     let action;

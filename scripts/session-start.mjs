@@ -16,22 +16,56 @@
  *
  * Contract (Claude Code hooks):
  *   stdin  = JSON: { cwd, source, session_id, hook_event_name, ... }
- *   stdout = JSON: { additionalContext?, systemMessage? }
- *     additionalContext → added to the model's context (the instruction)
- *     systemMessage      → shown to the USER as a transcript notice
+ *   stdout = JSON: {
+ *     systemMessage?: string,              // top-level: shown to the USER
+ *     hookSpecificOutput?: {               // event-scoped: read by the MODEL
+ *       hookEventName: "SessionStart",
+ *       additionalContext?: string,        // attaches to a turn the user starts
+ *       initialUserMessage?: string        // CREATES the opening turn (-p only)
+ *     }
+ *   }
  *   exit 0 always (a hook failure must never block the session)
+ *
+ * The nesting matters: additionalContext is only read inside hookSpecificOutput
+ * with a matching hookEventName. Emitted at the top level it is silently
+ * ignored — the user still sees systemMessage, so the hook looks like it worked
+ * while the model never receives the bootstrap instruction.
  */
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-/** Emit hook output and exit cleanly. Never throw past this. */
+/**
+ * Emit hook output and exit cleanly. Takes the flat shape
+ * { additionalContext?, systemMessage? } and writes the wire shape Claude Code
+ * expects, nesting additionalContext under hookSpecificOutput. Never throw past
+ * this.
+ */
 function emit(out) {
-  if (out && (out.additionalContext || out.systemMessage)) {
-    process.stdout.write(JSON.stringify(out));
+  if (!out || (!out.additionalContext && !out.systemMessage)) process.exit(0);
+
+  const payload = {};
+  if (out.systemMessage) payload.systemMessage = out.systemMessage;
+  if (out.additionalContext || out.initialUserMessage) {
+    payload.hookSpecificOutput = { hookEventName: 'SessionStart' };
+    if (out.additionalContext) {
+      payload.hookSpecificOutput.additionalContext = out.additionalContext;
+    }
+    if (out.initialUserMessage) {
+      payload.hookSpecificOutput.initialUserMessage = out.initialUserMessage;
+    }
   }
+  process.stdout.write(JSON.stringify(payload));
   process.exit(0);
 }
+
+/**
+ * Sources where an injected first turn is wanted. `clear` and `compact` are
+ * mid-session events — Claude Code ignores initialUserMessage there anyway, and
+ * asking for a fresh "what's new" catch-up after a compact would be wrong even
+ * if it didn't.
+ */
+const TURN_SOURCES = new Set(['startup', 'resume', 'fork']);
 
 /** Read all of stdin synchronously; tolerate an empty/absent payload. */
 function readStdin() {
@@ -69,13 +103,14 @@ function main() {
     // File exists but is unreadable/malformed — tell the user, don't guess.
     return emit({
       systemMessage:
-        'CatWrangler: found a .catwrangler file but could not parse it. ' +
-        'Fix or regenerate it, or run /cw-connect.',
+        '\n\nCatWrangler: found a .catwrangler file but could not parse it.\n' +
+        '  - Fix or regenerate it, or run /catwrangler:connect.',
     });
   }
 
   const projects = Array.isArray(manifest.projects) ? manifest.projects : [];
   const server = manifest.server || manifest.mcp_url || 'the CatWrangler MCP server';
+  const source = typeof input.source === 'string' ? input.source : 'startup';
 
   // Build the model-facing instruction. Selection is stated, never inferred:
   // one project → connect to it; several → pick by task or ask; unknown → ask
@@ -107,17 +142,47 @@ function main() {
 
   lines.push('This .catwrangler file is a convenience cache, not the source of truth. If the user references a project not listed here, call init_session to get the authoritative, current list from the server.');
 
+  // The opening turn. Unlike additionalContext, which attaches to a turn the
+  // user starts, this CREATES one — so it only lands in non-interactive (-p)
+  // runs, where a session would otherwise begin work without ever connecting.
+  // Interactive sessions ignore it and rely on additionalContext above.
+  const target =
+    projects.length === 1
+      ? `\`${projects[0].slug}\``
+      : projects.length > 1
+        ? 'the project that fits my task (ask me if it is ambiguous)'
+        : 'the project this workspace can reach';
+  const initialUserMessage = TURN_SOURCES.has(source)
+    ? `Connect to CatWrangler: call init_session for ${target}, then tell me what's new — recent decisions, active conflicts, and anything waiting on me. Keep it short.`
+    : null;
+
   // Build the concise user-facing notice.
   const names = projects.map((p) => p.slug).filter(Boolean);
   const shown = names.slice(0, 4).join(', ');
   const more = names.length > 4 ? `, +${names.length - 4} more` : '';
+  // Claude Code prefixes this with "SessionStart:startup says:", so lead with a
+  // blank line to clear it, then hang the details off the headline as an
+  // indented list — it reads as one CatWrangler block rather than three loose
+  // sentences the user has to attribute.
   const summary =
     projects.length === 0
-      ? `CatWrangler workspace detected (${server}). Retrieving your projects…`
-      : `CatWrangler workspace: ${projects.length} project${projects.length === 1 ? '' : 's'} available (${shown}${more}). Connecting via ${server}. Run /cw-connect to manage projects.`;
+      ? [
+          '',
+          '',
+          `CatWrangler workspace detected (${server}).`,
+          '  - Retrieving your projects…',
+        ].join('\n')
+      : [
+          '',
+          '',
+          `CatWrangler workspace: ${projects.length} project${projects.length === 1 ? '' : 's'} available (${shown}${more}).`,
+          `  - Connecting via ${server}.`,
+          '  - Run /catwrangler:connect to manage projects.',
+        ].join('\n');
 
   return emit({
     additionalContext: lines.join('\n'),
+    initialUserMessage,
     systemMessage: summary,
   });
 }
