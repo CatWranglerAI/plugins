@@ -1,5 +1,5 @@
 ---
-description: Manage this workspace's CatWrangler projects — list available and listed, add or remove them from .catwrangler, and connect (init_session). Invoke for "/catwrangler:connect", or when the user wants to add/remove/connect a CatWrangler project in this workspace.
+description: Manage this workspace's CatWrangler projects — list available, add or remove them from this workspace (.catwrangler), and connect (init_session).
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" *)
 argument-hint: "[list|add|remove|connect] [slug]"
 arguments: [verb, slug]
