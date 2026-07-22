@@ -7,8 +7,12 @@
  *
  * Subcommands (all print a single JSON object on stdout):
  *   list                                        → { ok, exists, path, server, projects }
- *   add    --slug S [--name N] [--desc D] [--server U] [--mcp-url M]
- *   remove --slug S
+ *   add    --slug S [--org O] [--name N] [--desc D] [--server U] [--mcp-url M]
+ *   remove --slug S [--org O]
+ *
+ * --org carries the org slug. Project slugs are unique only within an
+ * organization, so --org is what disambiguates two orgs' same-named projects.
+ * It is optional, so .catwrangler files written before it keep working.
  * Common option: --dir DIR (defaults to CWD).
  *
  * Exit 0 with { ok: true } on success; exit 1 with { ok: false, error } on failure.
@@ -120,21 +124,35 @@ function main() {
     if (!m.server) m.server = val(opts, 'server') || fallback.server;
     if (!m.mcp_url) m.mcp_url = val(opts, 'mcp-url') || fallback.mcpUrl;
 
-    const existing = m.projects.find((p) => p && p.slug === slug);
+    // Project slugs are unique only WITHIN an org, so slug alone is
+    // not an identity here. When --org is given, match on (slug, org_slug) so a
+    // second org's same-named project is a distinct entry rather than an
+    // overwrite. Without --org, fall back to slug-only matching, which keeps
+    // every pre-org entry working unchanged.
+    const org = val(opts, 'org');
+    const existing = m.projects.find((p) => p && p.slug === slug
+      && (org ? p.org_slug === org : true));
+
     let action;
     if (existing) {
       if (val(opts, 'name')) existing.name = val(opts, 'name');
       if (val(opts, 'desc')) existing.description = val(opts, 'desc');
+      if (org) existing.org_slug = org;
       action = 'updated';
     } else {
       const entry = { slug };
+      if (org) entry.org_slug = org;
       if (val(opts, 'name')) entry.name = val(opts, 'name');
       if (val(opts, 'desc')) entry.description = val(opts, 'desc');
       m.projects.push(entry);
       action = 'added';
     }
     save(m);
-    return out({ ok: true, action, slug, projects: m.projects });
+
+    // Surface a slug now ambiguous in the local menu so the caller can render
+    // both with their orgs rather than silently picking one.
+    const ambiguous = m.projects.filter((p) => p && p.slug === slug).length > 1;
+    return out({ ok: true, action, slug, ...(org ? { org_slug: org } : {}), ambiguous, projects: m.projects });
   }
 
   if (cmd === 'remove') {
@@ -142,11 +160,23 @@ function main() {
     if (!slug) fail('remove requires --slug');
     const m = load();
     if (!m) fail('no .catwrangler in ' + dir);
+    const org = val(opts, 'org');
     const before = projectsOf(m).length;
-    m.projects = projectsOf(m).filter((p) => !(p && p.slug === slug));
+
+    // Refuse to guess when the slug is ambiguous. Removing the wrong
+    // org's project is silent and annoying to undo, so require --org instead.
+    const matches = projectsOf(m).filter((p) => p && p.slug === slug);
+    if (!org && matches.length > 1) {
+      fail(`slug "${slug}" is listed in ${matches.length} orgs (`
+        + matches.map((p) => p.org_slug || '(no org)').join(', ')
+        + ') — pass --org to say which');
+    }
+
+    m.projects = projectsOf(m).filter((p) => !(p && p.slug === slug
+      && (org ? p.org_slug === org : true)));
     const action = m.projects.length < before ? 'removed' : 'noop';
     if (action === 'removed') save(m);
-    return out({ ok: true, action, slug, projects: m.projects });
+    return out({ ok: true, action, slug, ...(org ? { org_slug: org } : {}), projects: m.projects });
   }
 
   fail('unknown command: ' + (cmd || '(none)') + ' — use list | add | remove');

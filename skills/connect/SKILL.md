@@ -28,22 +28,27 @@ otherwise the project chosen in the hub or named in conversation.
 
 **No verb — interactive hub:**
 1. Show the listed projects (injected above) with their state.
-2. Fetch **available** projects if you can (see "Listing available"), and merge —
-   mark each `● connected`, `✓ listed`, or `+ available`.
+2. Fetch **available** projects via `list_projects` (see "Listing available"), and
+   merge — mark each `● connected`, `✓ listed`, or `+ available`. Match on
+   slug **and** `org_slug`, and show the org whenever a slug appears twice.
 3. Use `AskUserQuestion` to let the user add one or more available→listed, remove
    one or more listed, or connect to one. Then carry out the choice via the verbs
    below. This hub does **not** require an existing connection — show what you can
    from `.catwrangler` even with no server access.
 
-**`list`** — show listed (injected above). If connected, also show available with
-state markers. Never require a connection: with none, show listed only and note
-that available-listing needs the server.
+**`list`** — show listed (injected above), then call `list_projects` and show
+available with state markers. This needs no connection; if the tool is
+unavailable, show listed only and say why.
 
-**`add <slug>`** — add to `.catwrangler`, reusing the name/description from the
-available list when you have it:
+**`add <slug>`** — add to `.catwrangler`, reusing the name/description/org from
+the available list when you have it:
 ```
-node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --name "<name>" --desc "<description>"
+node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --org "<org_slug>" --name "<name>" --desc "<description>"
 ```
+Pass `--org` whenever `list_projects` gave you one — it is what keeps two orgs'
+same-named projects as two entries instead of one overwriting the other. The
+response echoes `ambiguous: true` when the resulting menu has more than one
+project with that slug; when it does, show the org next to each.
 The script is idempotent (updates in place if already listed). Report the result.
 It fills the file's `server`/`mcp_url` from the endpoint the plugin already
 bundles, so do **not** pass `--server`/`--mcp-url` unless the user names a
@@ -55,7 +60,8 @@ session or server access:
 ```
 node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" remove --slug "<slug>"
 ```
-Report the result.
+If that slug is listed under more than one org the script refuses and names the
+orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
 
 **`connect <slug>`** — connect a session: call the `catwrangler` MCP server's
 `init_session` for that project, then follow the protocol it returns — remember the
@@ -66,14 +72,29 @@ listed first.
 
 ## Listing available projects
 
-Fetch the projects this user can reach from the server.
+Call the `catwrangler` MCP server's **`list_projects`** tool. It takes no
+arguments and needs **no `init_session`** — that is the whole point of it, so
+reach for it before connecting, not after. It returns:
 
-**Current limitation:** there is not yet a dedicated MCP tool that returns the
-reachable-project menu without a session — that lands with the ATC projects
-endpoint / `init_session` menu (`atc:d-819`). Until then: if you are already
-connected, use what `init_session` returned; otherwise tell the user that
-available-listing needs that server endpoint, and proceed with listed +
-add/remove/connect, which all work today.
+```json
+{ "user": "you@example.com", "count": 2,
+  "projects": [ { "slug": "dev", "name": "CatWrangler dev",
+                  "org_slug": "catwrangler", "description": "…" } ] }
+```
+
+- `description` is optional — older projects have none. Show the name alone.
+- `org_slug` is always present and **must be carried into `add`**: slugs are
+  unique only within an org, so two orgs can both have a `dev`. When the merged
+  menu shows a duplicated slug, render the org alongside it and ask which.
+- There is deliberately no host on an entry. One connector maps to one project
+  today, so the list tells the user what exists; it does not by itself let you
+  reach another deployment.
+
+If the tool is missing from this server, or returns `PROJECT_LIST_UNAVAILABLE`
+(503, the control plane is unreachable), say so plainly and carry on with listed
++ add/remove/connect, which all work without it. Do **not** present an empty
+list as "you have no projects" — a failed lookup and genuinely having none are
+different answers, and only the tool's own empty `projects: []` means the latter.
 
 ## Rules
 

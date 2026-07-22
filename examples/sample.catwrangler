@@ -1,19 +1,21 @@
 {
   "version": 1,
-  "server": "https://dev.catwrangler.ai",
-  "mcp_url": "https://dev.catwrangler.ai/mcp",
-  "org": "catwrangler",
+  "server": "https://example.catwrangler.ai",
+  "mcp_url": "https://example.catwrangler.ai/mcp",
+  "org": "acme",
   "generated_by": "connect-flow",
   "projects": [
     {
-      "slug": "dev",
-      "name": "CatWrangler Dev",
-      "description": "The primary CatWrangler dogfood instance — CatWrangler managing its own development."
+      "slug": "storefront",
+      "org_slug": "acme",
+      "name": "Storefront",
+      "description": "Customer-facing web storefront."
     },
     {
-      "slug": "db-provision-test",
-      "name": "DB Provision Test",
-      "description": "Test tenant for on-demand Supabase provisioning; owns a real minted database project."
+      "slug": "billing-api",
+      "org_slug": "acme",
+      "name": "Billing API",
+      "description": "Subscriptions and invoicing."
     }
   ]
 }
