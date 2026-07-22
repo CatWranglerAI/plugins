@@ -1,0 +1,19 @@
+{
+  "name": "catwrangler",
+  "description": "Official CatWrangler plugins for Claude Code.",
+  "owner": {
+    "name": "CatWrangler",
+    "email": "team@catwrangler.ai"
+  },
+  "plugins": [
+    {
+      "name": "catwrangler",
+      "source": "./",
+      "description": "Connect Claude Code to a CatWrangler workspace: bundles the MCP server and injects a per-project menu + init_session instruction at session start.",
+      "version": "0.1.1",
+      "author": {
+        "name": "CatWrangler"
+      }
+    }
+  ]
+}
