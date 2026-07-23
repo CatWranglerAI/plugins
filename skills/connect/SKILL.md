@@ -63,12 +63,26 @@ node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" remove --slug "<slug>"
 If that slug is listed under more than one org the script refuses and names the
 orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
 
-**`connect <slug>`** — connect a session: call the `catwrangler` MCP server's
-`init_session` for that project, then follow the protocol it returns — remember the
-returned `agent_id` and thread it as `_agent_id` on every later call, keep a
-separate agent_id per instance, and use the server's MCP tools (no local project
-source), exactly as at session start. Connecting does not require the project to be
-listed first.
+**`connect <slug>`** — connect a session **and** list the project so it persists:
+
+1. Call the `catwrangler` MCP server's `init_session` for that project, then
+   follow the protocol it returns — remember the returned `agent_id` and thread it
+   as `_agent_id` on every later call, keep a separate agent_id per instance, and
+   use the server's MCP tools (no local project source), exactly as at session
+   start. Connecting does not require the project to be listed first.
+2. Once `init_session` succeeds, add the project to `.catwrangler` with the same
+   idempotent `add` the `add` verb uses, so the next session starts with it
+   already listed and the session-start hook connects to it automatically —
+   otherwise the first connect vanishes and the following session is surprised to
+   find nothing configured:
+   ```
+   node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>"
+   ```
+   Carry `--org "<org_slug>"`, `--name "<name>"`, and `--desc "<description>"` too
+   whenever `list_projects` gave you them (see "Listing available") — `--org` in
+   particular is what keeps two orgs' same-named projects distinct. Skip this step
+   only if the user explicitly asked for a one-off connection without listing it;
+   `add` is idempotent, so listing an already-listed project just refreshes it.
 
 ## Listing available projects
 

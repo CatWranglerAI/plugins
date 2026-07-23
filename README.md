@@ -91,7 +91,7 @@ once MCP is up.
 | Non-interactive run (`claude -p`) | Also supplies an opening turn — connect, then summarize what's new — so a headless session never starts work unconnected. Interactive sessions ignore it; not sent on `clear`/`compact` |
 | `.catwrangler` present, 1 project | Instructs a deterministic connect to that project |
 | `.catwrangler` present, 0 projects | Instructs the model to fetch the list from `init_session` |
-| No `.catwrangler` | **Silent no-op** — safe to install user-global |
+| No `.catwrangler` | One-line notice: not connected here, run `/catwrangler:connect`. Only on real session starts, not `clear`/`compact`. No model instruction (nothing to connect to) |
 | `.catwrangler` malformed | User-visible notice, no crash |
 | Node.js not on `PATH` | User-visible "install Node 18+" notice + a model-facing note that the bootstrap was skipped; session continues |
 | Node present but the hook errors | Same shape, pointing at `node --version` |
@@ -115,9 +115,11 @@ Progress notifications do not extend the timer. Note that this value is also a
 floor on the idle timeout, so a genuinely stuck call takes 10 minutes to abort
 rather than the default 5.
 
-**Confinement** is by file-presence: the plugin acts only where a `.catwrangler`
-exists, so a user-global install stays quiet in every other project — no
-directory allowlist needed. (Project-scoped install also works; see Scopes.)
+**Confinement** is by file-presence: the plugin does real work (the project menu
++ `init_session` instruction) only where a `.catwrangler` exists, so a user-global
+install never bootstraps the wrong project — no directory allowlist needed.
+Elsewhere it emits at most a single "not connected — run `/catwrangler:connect`"
+line on session start. (Project-scoped install also works; see Scopes.)
 
 ## Managing projects — `/catwrangler:connect`
 
@@ -129,7 +131,7 @@ server), or **connected** (`init_session` called this session).
 /catwrangler:connect                 # interactive hub: show state, then add/remove/connect
 /catwrangler:connect add <slug>      # add a project to .catwrangler (idempotent)
 /catwrangler:connect remove <slug>   # delist from .catwrangler (does not touch sessions)
-/catwrangler:connect connect <slug>  # init_session for that project, then follow protocol
+/catwrangler:connect connect <slug>  # init_session for that project, then list it (persists) + follow protocol
 ```
 
 The skill drives all server interaction and the `AskUserQuestion` prompts; the

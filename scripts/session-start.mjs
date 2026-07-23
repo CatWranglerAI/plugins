@@ -97,8 +97,19 @@ function main() {
     manifest = JSON.parse(text);
   } catch (err) {
     if (err && err.code === 'ENOENT') {
-      // Not a CatWrangler workspace — stay silent.
-      return emit(null);
+      // No .catwrangler here: the plugin is installed but this directory has no
+      // project connected yet. Emit a one-line, user-facing nudge toward
+      // /catwrangler:connect, and nothing for the model — there is no project to
+      // connect to, so no bootstrap instruction belongs here. Limited to real
+      // session starts (not clear/compact) so it never re-nags mid-session.
+      const src = typeof input.source === 'string' ? input.source : 'startup';
+      if (!TURN_SOURCES.has(src)) return emit(null);
+      return emit({
+        systemMessage:
+          '\n\n' +
+          'CatWrangler: not connected to a project in this directory.\n' +
+          '  - Run /catwrangler:connect to see your projects and connect to one.',
+      });
     }
     // File exists but is unreadable/malformed — tell the user, don't guess.
     return emit({
