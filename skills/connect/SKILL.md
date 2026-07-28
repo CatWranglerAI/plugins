@@ -91,14 +91,17 @@ arguments and needs **no `init_session`** — that is the whole point of it, so
 reach for it before connecting, not after. It returns:
 
 ```json
-{ "user": "you@example.com", "count": 2,
-  "projects": [ { "slug": "dev", "name": "CatWrangler dev",
-                  "org_slug": "catwrangler", "description": "…" } ] }
+{ "user": "you@example.com", "count": 3,
+  "projects": [
+    { "slug": "arcade", "name": "Arcade Platform", "org_slug": "pixel-arcade",
+      "description": "Cross-game plane: accounts, coins, leaderboards." },
+    { "slug": "neon-racer", "name": "Neon Racer", "org_slug": "pixel-arcade" },
+    { "slug": "dungeon-cats", "name": "Dungeon Cats", "org_slug": "pixel-arcade" } ] }
 ```
 
 - `description` is optional — older projects have none. Show the name alone.
 - `org_slug` is always present and **must be carried into `add`**: slugs are
-  unique only within an org, so two orgs can both have a `dev`. When the merged
+  unique only within an org, so two orgs can both have an `arcade`. When the merged
   menu shows a duplicated slug, render the org alongside it and ask which.
 - There is deliberately no host on an entry. One connector maps to one project
   today, so the list tells the user what exists; it does not by itself let you
