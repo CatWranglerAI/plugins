@@ -1,8 +1,8 @@
 {
   "name": "catwrangler",
   "displayName": "CatWrangler",
-  "version": "0.4.2",
-  "description": "Connect Claude Code to your CatWrangler projects. Start a session in your workspace and Claude is already there — working with your project's decisions, tasks, and code. No links to paste, no config to write.",
+  "version": "0.4.3",
+  "description": "Bring your CatWrangler projects into Claude Code. Every session connects itself and picks up the right project's context — its decisions, its history, its code — so you skip the setup and get to work.",
   "author": {
     "name": "CatWrangler"
   },
