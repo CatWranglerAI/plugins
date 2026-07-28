@@ -1,8 +1,8 @@
 {
   "name": "catwrangler",
   "displayName": "CatWrangler",
-  "version": "0.4.1",
-  "description": "Connects Claude Code to a CatWrangler workspace. Bundles the CatWrangler MCP server and, at session start, injects the reachable-project menu plus an init_session instruction — no URL typing, no hand-written CLAUDE.md.",
+  "version": "0.4.2",
+  "description": "Connect Claude Code to your CatWrangler projects. Start a session in your workspace and Claude is already there — working with your project's decisions, tasks, and code. No links to paste, no config to write.",
   "author": {
     "name": "CatWrangler"
   },
