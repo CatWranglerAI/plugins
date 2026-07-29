@@ -21,14 +21,28 @@ plugins/                                 ← repo root (github.com/CatWranglerAI
 │   ├── marketplace.json                 ← lists the plugin (source "./")
 │   └── plugin.json                      ← plugin manifest (bundles the MCP server)
 ├── mcp-config.json                      ← the CatWrangler MCP server entry
+├── lib/                                 ← host-neutral core (see below)
+│   ├── registry.mjs                     ← .catwrangler read/write, pure functions
+│   ├── manage-cli.mjs                   ← argv → JSON stdout, exit codes
+│   ├── bootstrap.mjs                    ← what SessionStart tells the model
+│   └── hook.mjs                         ← SessionStart stdin/stdout contract
 ├── hooks/hooks.json                     ← SessionStart → session-start.sh
 ├── scripts/session-start.sh             ← wrapper: reports a missing/broken Node
-├── scripts/session-start.mjs            ← the hook (injects the bootstrap protocol)
+├── scripts/session-start.mjs            ← Claude Code hook adapter (~3 lines over lib/)
 ├── skills/connect/                      ← /catwrangler:connect: manage workspace projects
 │   ├── SKILL.md
-│   └── scripts/manage.mjs               ← deterministic .catwrangler CRUD
+│   └── scripts/manage.mjs               ← entry point; delegates to lib/manage-cli.mjs
 └── examples/sample.catwrangler          ← what the /connect flow generates
 ```
+
+**Why `lib/` exists.** Claude Code and Codex converged on nearly the same
+extension surface — same `skills/<name>/SKILL.md` layout, and a SessionStart hook
+with the same `hookSpecificOutput.additionalContext` contract. What differs is
+the manifest, the MCP config shape, and a handful of host-specific escape
+hatches. So the behavior lives in `lib/` once and each host gets a thin adapter,
+rather than two copies of the logic drifting apart. `lib/` touches no
+host-specific API and resolves its own paths from `import.meta.url`, so it works
+regardless of which host invoked it or from what directory.
 
 ## Install
 
