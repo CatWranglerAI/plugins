@@ -5,7 +5,9 @@
  * owns only the local file so JSON shape/formatting/dedup are never left to the
  * model.
  *
- * Subcommands (all print a single JSON object on stdout):
+ * Subcommands (all print a single JSON object on stdout). Note `list` here reads
+ * the local registry only — it is not the skill's `list` verb, which merges these
+ * registered projects with the server's available ones:
  *   list                                        → { ok, exists, path, server, projects }
  *   add    --slug S [--id I] [--org O] [--name N] [--desc D] [--server U] [--mcp-url M]
  *   remove --slug S [--org O]
@@ -157,7 +159,7 @@ function main() {
     }
     save(m);
 
-    // Surface a slug now ambiguous in the local menu so the caller can render
+    // Surface a slug now ambiguous in the local registry so the caller can render
     // both with their orgs rather than silently picking one.
     const ambiguous = m.projects.filter((p) => p && p.slug === slug).length > 1;
     return out({ ok: true, action, slug, ...(org ? { org_slug: org } : {}), ambiguous, projects: m.projects });
@@ -175,7 +177,7 @@ function main() {
     // org's project is silent and annoying to undo, so require --org instead.
     const matches = projectsOf(m).filter((p) => p && p.slug === slug);
     if (!org && matches.length > 1) {
-      fail(`slug "${slug}" is listed in ${matches.length} orgs (`
+      fail(`slug "${slug}" is registered in ${matches.length} orgs (`
         + matches.map((p) => p.org_slug || '(no org)').join(', ')
         + ') — pass --org to say which');
     }

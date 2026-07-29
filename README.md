@@ -81,7 +81,7 @@ slug.
 
 It is a **convenience cache, not the source of truth.** The hook tells the model
 to fall back to `init_session` (the server) whenever the user references a project
-not listed here. This is deliberate: a stale local file must never override live
+not registered here. This is deliberate: a stale local file must never override live
 server access, and project identity must never be inferred from the local
 environment.
 
@@ -129,16 +129,23 @@ line on session start. (Project-scoped install also works; see Scopes.)
 
 ## Managing projects — `/catwrangler:connect`
 
-One skill manages this workspace's project menu and connects sessions. Every
-project is **listed** (in `.catwrangler`), **available** (reachable per the
-server), or **connected** (`init_session` called this session).
+One skill manages this workspace's project registry and connects sessions. Every
+project is **available** (reachable per the server), **registered** (recorded in
+`.catwrangler`), or **connected** (`init_session` called this session). They
+normally stack in that order, but they are independent: you can connect to a
+project that was never registered, and registering one grants no access it did
+not already have.
 
 ```
 /catwrangler:connect                 # interactive hub: show state, then add/remove/connect
-/catwrangler:connect add <slug>      # add a project to .catwrangler (idempotent)
-/catwrangler:connect remove <slug>   # delist from .catwrangler (does not touch sessions)
-/catwrangler:connect connect <slug>  # init_session for that project, then list it (persists) + follow protocol
+/catwrangler:connect list            # read-only: show every project and its state
+/catwrangler:connect add <slug>      # register a project in .catwrangler (idempotent)
+/catwrangler:connect remove <slug>   # unregister from .catwrangler (does not touch sessions)
+/catwrangler:connect connect <slug>  # init_session for that project, then register it (persists) + follow protocol
 ```
+
+`list` and the bare hub render the same view; `list` just stops there instead of
+offering to change anything.
 
 The skill drives all server interaction and the `AskUserQuestion` prompts; the
 bundled `manage.mjs` owns every `.catwrangler` read/write, so JSON shape,

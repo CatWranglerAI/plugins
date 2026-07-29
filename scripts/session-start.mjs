@@ -144,7 +144,7 @@ function main() {
     }
     lines.push('Pick the project that matches the user\'s task and call init_session for it, passing its `id` above. If more than one plausibly applies and it is ambiguous, ask the user which — do not guess.');
   } else {
-    lines.push('No projects are listed in .catwrangler. Call init_session to retrieve the authoritative list of projects this user can reach, then proceed.');
+    lines.push('No projects are registered in .catwrangler. Call init_session to retrieve the authoritative list of projects this user can reach, then proceed.');
   }
 
   // Identity discipline: init_session mints an agent_id that must ride every
@@ -154,7 +154,7 @@ function main() {
   // No local source: all project code and decisions live on the server.
   lines.push('You have NO local source code or decision files for the project — it all lives on the CatWrangler server behind its SCCS gates. Use the server\'s MCP tools (get_task_briefing, grep_code, read_code, list_files, search_decisions) for ALL code and decision access; do NOT use local file tools (Read, Grep, Glob, cat) to explore the project. The only local files are CLAUDE.md and Docs/.');
 
-  lines.push('This .catwrangler file is a convenience cache, not the source of truth. If the user references a project not listed here, call init_session to get the authoritative, current list from the server.');
+  lines.push('This .catwrangler file is a convenience cache, not the source of truth. If the user references a project not registered here, call init_session to get the authoritative, current list from the server.');
 
   // The opening turn. Unlike additionalContext, which attaches to a turn the
   // user starts, this CREATES one — so it only lands in non-interactive (-p)
