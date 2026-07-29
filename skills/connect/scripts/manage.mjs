@@ -11,10 +11,10 @@
  *   remove --slug S [--org O]
  *
  * --id carries the server-assigned project id (the `id` field from
- * list_projects). It is stored verbatim so `connect` can feed it to
- * init_session's `id` parameter — the unambiguous connection key, since a slug
- * is unique only within an org. It is optional, so files written before it keep
- * working.
+ * list_projects, shaped like `p-841207`). It is stored verbatim so `connect` can
+ * feed it to init_session's `project_id` parameter — the unambiguous connection
+ * key, since a slug is unique only within an org. It is optional, so files
+ * written before it keep working.
  *
  * --org carries the org slug. Project slugs are unique only within an
  * organization, so --org is what disambiguates two orgs' same-named projects.

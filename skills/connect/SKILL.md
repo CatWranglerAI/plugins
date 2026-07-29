@@ -68,8 +68,8 @@ orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
 **`connect <slug>`** — connect a session **and** list the project so it persists:
 
 1. Call the `catwrangler` MCP server's `init_session` for that project, passing
-   the project's `id` as init_session's `id` parameter when you have one (from the
-   `.catwrangler` entry or `list_projects`) — that pins the exact project rather
+   the project's `id` as init_session's `project_id` parameter when you have one
+   (from the `.catwrangler` entry or `list_projects`) — that pins the exact project rather
    than relying on a slug the server would have to disambiguate. Fall back to the
    slug only when no id is recorded. Then follow the protocol it returns — remember
    the returned `agent_id` and thread it as `_agent_id` on every later call, keep a
@@ -100,19 +100,20 @@ reach for it before connecting, not after. It returns:
 ```json
 { "user": "you@example.com", "count": 3,
   "projects": [
-    { "id": "prj_3f7a2c", "slug": "arcade", "name": "Arcade Platform",
+    { "id": "p-841207", "slug": "arcade", "name": "Arcade Platform",
       "org_slug": "pixel-arcade",
       "description": "Cross-game plane: accounts, coins, leaderboards." },
-    { "id": "prj_9b1e04", "slug": "neon-racer", "name": "Neon Racer",
+    { "id": "p-773915", "slug": "neon-racer", "name": "Neon Racer",
       "org_slug": "pixel-arcade" },
-    { "id": "prj_c5d8a2", "slug": "dungeon-cats", "name": "Dungeon Cats",
+    { "id": "p-620384", "slug": "dungeon-cats", "name": "Dungeon Cats",
       "org_slug": "pixel-arcade" } ] }
 ```
 
-- `id` is the server-assigned project id (opaque — never derive it from the slug).
-  **Carry it into `add`** and it becomes the connection key: `connect` feeds it to
-  `init_session` as its `id` parameter, which pins the exact project without the
-  slug's org-scoping ambiguity. Older servers may omit it; connect by slug then.
+- `id` is the server-assigned project id (opaque, shaped like `p-841207` — never
+  derive it from the slug). **Carry it into `add`** and it becomes the connection
+  key: `connect` feeds it to `init_session` as its `project_id` parameter, which
+  pins the exact project without the slug's org-scoping ambiguity. Older servers
+  may omit it; connect by slug then.
 - `description` is optional — older projects have none. Show the name alone.
 - `org_slug` is always present and **must be carried into `add`**: slugs are
   unique only within an org, so two orgs can both have an `arcade`. When the merged

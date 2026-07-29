@@ -128,7 +128,7 @@ function main() {
   // the server for the authoritative list rather than trusting this cache.
   const lines = [];
   lines.push('This is a CatWrangler workspace. Before doing ANY work on the project, call the `catwrangler` MCP server\'s `init_session` tool. It returns your full working protocol and context — follow what it returns.');
-  lines.push('When the project you connect to carries an `id` below, pass that id to init_session as its `id` parameter — it pins the exact project. Only fall back to the slug when no id is recorded.');
+  lines.push('When the project you connect to carries an `id` below, pass that id to init_session as its `project_id` parameter — it pins the exact project. Only fall back to the slug when no id is recorded.');
 
   if (projects.length === 1) {
     const p = projects[0];
