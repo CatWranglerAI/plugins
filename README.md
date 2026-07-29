@@ -67,11 +67,16 @@ from the server's per-user reachable-project list). JSON:
   "mcp_url": "https://example.catwrangler.ai/mcp",
   "org": "acme",
   "projects": [
-    { "slug": "storefront", "org_slug": "acme", "name": "Storefront",
-      "description": "…what it is/does…" }
+    { "id": "prj_5a1c9f", "slug": "storefront", "org_slug": "acme",
+      "name": "Storefront", "description": "…what it is/does…" }
   ]
 }
 ```
+
+Each project's `id` is the server-assigned key the `/connect` flow feeds to
+`init_session` to pin the exact project; `slug`, `org_slug`, `name`, and
+`description` come from `list_projects`. Entries written before ids were captured
+have none and connect by slug.
 
 It is a **convenience cache, not the source of truth.** The hook tells the model
 to fall back to `init_session` (the server) whenever the user references a project

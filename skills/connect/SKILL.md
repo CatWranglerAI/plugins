@@ -40,12 +40,14 @@ otherwise the project chosen in the hub or named in conversation.
 available with state markers. This needs no connection; if the tool is
 unavailable, show listed only and say why.
 
-**`add <slug>`** — add to `.catwrangler`, reusing the name/description/org from
+**`add <slug>`** — add to `.catwrangler`, reusing the id/name/description/org from
 the available list when you have it:
 ```
-node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --org "<org_slug>" --name "<name>" --desc "<description>"
+node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>"
 ```
-Pass `--org` whenever `list_projects` gave you one — it is what keeps two orgs'
+Pass `--id` whenever `list_projects` gave you one — it is what `connect` later
+feeds to `init_session`, so capturing it now is what lets a listed project
+connect unambiguously. Pass `--org` too — it is what keeps two orgs'
 same-named projects as two entries instead of one overwriting the other. The
 response echoes `ambiguous: true` when the resulting menu has more than one
 project with that slug; when it does, show the org next to each.
@@ -65,24 +67,29 @@ orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
 
 **`connect <slug>`** — connect a session **and** list the project so it persists:
 
-1. Call the `catwrangler` MCP server's `init_session` for that project, then
-   follow the protocol it returns — remember the returned `agent_id` and thread it
-   as `_agent_id` on every later call, keep a separate agent_id per instance, and
-   use the server's MCP tools (no local project source), exactly as at session
-   start. Connecting does not require the project to be listed first.
+1. Call the `catwrangler` MCP server's `init_session` for that project, passing
+   the project's `id` as init_session's `id` parameter when you have one (from the
+   `.catwrangler` entry or `list_projects`) — that pins the exact project rather
+   than relying on a slug the server would have to disambiguate. Fall back to the
+   slug only when no id is recorded. Then follow the protocol it returns — remember
+   the returned `agent_id` and thread it as `_agent_id` on every later call, keep a
+   separate agent_id per instance, and use the server's MCP tools (no local project
+   source), exactly as at session start. Connecting does not require the project to
+   be listed first.
 2. Once `init_session` succeeds, add the project to `.catwrangler` with the same
    idempotent `add` the `add` verb uses, so the next session starts with it
    already listed and the session-start hook connects to it automatically —
    otherwise the first connect vanishes and the following session is surprised to
    find nothing configured:
    ```
-   node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>"
+   node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --id "<id>"
    ```
-   Carry `--org "<org_slug>"`, `--name "<name>"`, and `--desc "<description>"` too
-   whenever `list_projects` gave you them (see "Listing available") — `--org` in
-   particular is what keeps two orgs' same-named projects distinct. Skip this step
-   only if the user explicitly asked for a one-off connection without listing it;
-   `add` is idempotent, so listing an already-listed project just refreshes it.
+   Carry `--id "<id>"`, `--org "<org_slug>"`, `--name "<name>"`, and
+   `--desc "<description>"` whenever `list_projects` gave you them (see "Listing
+   available") — the `id` is what lets the *next* session connect unambiguously,
+   and `--org` keeps two orgs' same-named projects distinct. Skip this step only if
+   the user explicitly asked for a one-off connection without listing it; `add` is
+   idempotent, so listing an already-listed project just refreshes it.
 
 ## Listing available projects
 
@@ -93,12 +100,19 @@ reach for it before connecting, not after. It returns:
 ```json
 { "user": "you@example.com", "count": 3,
   "projects": [
-    { "slug": "arcade", "name": "Arcade Platform", "org_slug": "pixel-arcade",
+    { "id": "prj_3f7a2c", "slug": "arcade", "name": "Arcade Platform",
+      "org_slug": "pixel-arcade",
       "description": "Cross-game plane: accounts, coins, leaderboards." },
-    { "slug": "neon-racer", "name": "Neon Racer", "org_slug": "pixel-arcade" },
-    { "slug": "dungeon-cats", "name": "Dungeon Cats", "org_slug": "pixel-arcade" } ] }
+    { "id": "prj_9b1e04", "slug": "neon-racer", "name": "Neon Racer",
+      "org_slug": "pixel-arcade" },
+    { "id": "prj_c5d8a2", "slug": "dungeon-cats", "name": "Dungeon Cats",
+      "org_slug": "pixel-arcade" } ] }
 ```
 
+- `id` is the server-assigned project id (opaque — never derive it from the slug).
+  **Carry it into `add`** and it becomes the connection key: `connect` feeds it to
+  `init_session` as its `id` parameter, which pins the exact project without the
+  slug's org-scoping ambiguity. Older servers may omit it; connect by slug then.
 - `description` is optional — older projects have none. Show the name alone.
 - `org_slug` is always present and **must be carried into `add`**: slugs are
   unique only within an org, so two orgs can both have an `arcade`. When the merged

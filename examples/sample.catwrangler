@@ -6,12 +6,14 @@
   "generated_by": "connect-flow",
   "projects": [
     {
+      "id": "prj_5a1c9f",
       "slug": "storefront",
       "org_slug": "acme",
       "name": "Storefront",
       "description": "Customer-facing web storefront."
     },
     {
+      "id": "prj_b73e20",
       "slug": "billing-api",
       "org_slug": "acme",
       "name": "Billing API",

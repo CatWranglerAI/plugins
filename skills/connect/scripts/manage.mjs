@@ -7,8 +7,14 @@
  *
  * Subcommands (all print a single JSON object on stdout):
  *   list                                        → { ok, exists, path, server, projects }
- *   add    --slug S [--org O] [--name N] [--desc D] [--server U] [--mcp-url M]
+ *   add    --slug S [--id I] [--org O] [--name N] [--desc D] [--server U] [--mcp-url M]
  *   remove --slug S [--org O]
+ *
+ * --id carries the server-assigned project id (the `id` field from
+ * list_projects). It is stored verbatim so `connect` can feed it to
+ * init_session's `id` parameter — the unambiguous connection key, since a slug
+ * is unique only within an org. It is optional, so files written before it keep
+ * working.
  *
  * --org carries the org slug. Project slugs are unique only within an
  * organization, so --org is what disambiguates two orgs' same-named projects.
@@ -135,12 +141,14 @@ function main() {
 
     let action;
     if (existing) {
+      if (val(opts, 'id')) existing.id = val(opts, 'id');
       if (val(opts, 'name')) existing.name = val(opts, 'name');
       if (val(opts, 'desc')) existing.description = val(opts, 'desc');
       if (org) existing.org_slug = org;
       action = 'updated';
     } else {
       const entry = { slug };
+      if (val(opts, 'id')) entry.id = val(opts, 'id');
       if (org) entry.org_slug = org;
       if (val(opts, 'name')) entry.name = val(opts, 'name');
       if (val(opts, 'desc')) entry.description = val(opts, 'desc');
