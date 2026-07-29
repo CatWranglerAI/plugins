@@ -1,6 +1,6 @@
-# CatWrangler — Claude Code plugin
+# CatWrangler — Claude Code and Codex plugin
 
-Onboards Claude Code to a CatWrangler workspace with **no URL typing and no
+Onboards your coding agent to a CatWrangler workspace with **no URL typing and no
 hand-written CLAUDE.md**. Installing the plugin does two things:
 
 1. **Registers the CatWrangler MCP server** (bundled — the user never types a URL).
@@ -13,38 +13,71 @@ hand-written CLAUDE.md**. Installing the plugin does two things:
 
 ## Layout
 
-The repo root is both the marketplace and the single plugin (`source: "./"`):
+The repo root is the plugin root **for both hosts** — one tree, two manifests.
+Everything that is not a manifest, an MCP config, or a hook entry is shared:
 
 ```
 plugins/                                 ← repo root (github.com/CatWranglerAI/plugins)
-├── .claude-plugin/
-│   ├── marketplace.json                 ← lists the plugin (source "./")
-│   └── plugin.json                      ← plugin manifest (bundles the MCP server)
-├── mcp-config.json                      ← the CatWrangler MCP server entry
-├── lib/                                 ← host-neutral core (see below)
+│
+│   ── shared: one copy, both hosts ──
+├── lib/                                 ← everything the plugin actually does
 │   ├── registry.mjs                     ← .catwrangler read/write, pure functions
 │   ├── manage-cli.mjs                   ← argv → JSON stdout, exit codes
 │   ├── bootstrap.mjs                    ← what SessionStart tells the model
 │   └── hook.mjs                         ← SessionStart stdin/stdout contract
-├── hooks/hooks.json                     ← SessionStart → session-start.sh
+├── src/skill-connect.md                 ← the ONE source for both SKILL.md files
+├── tools/build-skills.mjs               ← renders src/ → each host's SKILL.md
 ├── scripts/session-start.sh             ← wrapper: reports a missing/broken Node
-├── scripts/session-start.mjs            ← Claude Code hook adapter (~3 lines over lib/)
-├── skills/connect/                      ← /catwrangler:connect: manage workspace projects
-│   ├── SKILL.md
-│   └── scripts/manage.mjs               ← entry point; delegates to lib/manage-cli.mjs
-└── examples/sample.catwrangler          ← what the /connect flow generates
+├── tests/parity.sh                      ← golden transcripts; proves the hosts agree
+├── examples/sample.catwrangler          ← what the /connect flow generates
+│
+│   ── Claude Code ──
+├── .claude-plugin/
+│   ├── marketplace.json                 ← lists the plugin (source "./")
+│   └── plugin.json                      ← manifest (bundles the MCP server)
+├── mcp-config.json                      ← MCP entry, {mcpServers:{…}}, ms timeout
+├── hooks/hooks.json                     ← SessionStart → session-start.sh
+├── scripts/session-start.mjs            ← adapter (~3 lines over lib/)
+├── skills/connect/SKILL.md              ← GENERATED from src/
+│   └── scripts/manage.mjs               ← entry point; delegates to lib/
+│
+│   ── Codex ──
+├── .codex-plugin/plugin.json            ← manifest (skills → ./skills-codex/)
+├── .mcp.json                            ← MCP entry, bare map, seconds timeout
+├── hooks.json                           ← SessionStart → session-start.sh
+├── scripts/session-start-codex.mjs      ← adapter (~3 lines over lib/)
+└── skills-codex/connect/SKILL.md        ← GENERATED from src/
+    └── scripts/manage.mjs               ← entry point; delegates to lib/
 ```
 
-**Why `lib/` exists.** Claude Code and Codex converged on nearly the same
-extension surface — same `skills/<name>/SKILL.md` layout, and a SessionStart hook
-with the same `hookSpecificOutput.additionalContext` contract. What differs is
-the manifest, the MCP config shape, and a handful of host-specific escape
-hatches. So the behavior lives in `lib/` once and each host gets a thin adapter,
-rather than two copies of the logic drifting apart. `lib/` touches no
-host-specific API and resolves its own paths from `import.meta.url`, so it works
-regardless of which host invoked it or from what directory.
+**Why one tree.** Claude Code and Codex converged on nearly the same extension
+surface: the same `skills/<name>/SKILL.md` layout, and a SessionStart hook whose
+output uses the same `hookSpecificOutput.additionalContext` fields. What differs
+is the manifest, the MCP config shape, and a few host-specific escape hatches.
+Codex's manifest lets a plugin point `skills` anywhere, so both plugins can be
+rooted here and share `lib/` as a single copy — rooting Codex in a subdirectory
+would force `lib/` to be duplicated, because a plugin install copies its root.
+
+**Why the SKILL.md files are generated.** They are the one thing that genuinely
+must exist twice: `${CLAUDE_SKILL_DIR}` and Claude Code's `` !`command` ``
+output-injection have no Codex equivalent. Symlinking is not an option — git
+stores a symlink as its path string, and a Windows checkout without
+`core.symlinks` (the default absent Developer Mode) writes a regular file
+*containing that path*, so the customer gets a SKILL.md whose entire content is
+`../../skills/…` and no error anywhere. Both copies are rendered from
+`src/skill-connect.md`; `tests/parity.sh` fails if either is stale.
+
+**What differs between the hosts at runtime.** Exactly one thing, and it is
+verified rather than assumed: Codex documents that SessionStart injects developer
+context only and cannot create user turns, so its adapter drops
+`initialUserMessage`. `tests/parity.sh` records a transcript per host, and every
+line that differs between them is that dropped opening turn — nothing else.
+Practically, an interactive Codex session gets the identical bootstrap; a
+headless one gets the instruction without a forced first turn.
 
 ## Install
+
+**Claude Code:**
 
 ```shell
 /plugin marketplace add CatWranglerAI/plugins
@@ -52,15 +85,24 @@ regardless of which host invoked it or from what directory.
 /reload-plugins
 ```
 
+**Codex:** `/plugins`, then install from the marketplace. Start a new session
+before using the bundled skill or tools — Codex does not hot-reload plugins.
+
 Then drop a `.catwrangler` file (copy `examples/sample.catwrangler`) into a test
 directory, start a session there, and the hook fires.
 
-Test the hook directly without installing:
+Test either hook directly without installing:
 
 ```shell
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
-  | sh scripts/session-start.sh
+  | sh scripts/session-start.sh                        # Claude Code
+printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
+  | sh scripts/session-start.sh session-start-codex.mjs   # Codex
 ```
+
+Run the full suite — both hosts' transcripts plus the SKILL.md staleness check —
+with `tests/parity.sh`. After an intentional change, re-record with
+`tests/parity.sh --update` and review the golden diff.
 
 Simulate a machine without Node (should print an install notice, exit 0):
 

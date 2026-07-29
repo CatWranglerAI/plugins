@@ -107,6 +107,21 @@ mkdir -p "$GOLD"
 status=0
 checked=0
 
+# Both SKILL.md files are generated from src/skill-connect.md. Editing a
+# generated copy directly would survive review and ship, so the staleness check
+# runs as part of the suite rather than on the honor system.
+if [ "$UPDATE" = "1" ]; then
+  node tools/build-skills.mjs > /dev/null && echo "ok   skills (regenerated)"
+else
+  if node tools/build-skills.mjs --check > /dev/null 2>&1; then
+    echo "ok   skills"
+  else
+    echo "FAIL skills — generated SKILL.md is out of sync with src/skill-connect.md"
+    node tools/build-skills.mjs --check 2>&1 | grep STALE
+    status=1
+  fi
+fi
+
 for host in "${HOSTS[@]}"; do
   read -r manage hook <<<"$(adapters "$host")" || { echo "unknown host: $host" >&2; exit 2; }
   if [ ! -f "$manage" ] || [ ! -f "$hook" ]; then

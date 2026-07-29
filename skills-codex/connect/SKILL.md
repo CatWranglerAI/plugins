@@ -1,10 +1,8 @@
 ---
-description: Manage this workspace's CatWrangler projects — list available, register or remove them in this workspace (.catwrangler), and connect (init_session).
-allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" *)
-argument-hint: "[list|add|remove|connect] [slug]"
-arguments: [verb, slug]
+name: catwrangler-connect
+description: Manage this workspace's CatWrangler projects — list available, register or remove them in this workspace (.catwrangler), and connect (init_session). Use when the user asks to connect to CatWrangler, switch projects, see which projects exist, or add/remove a project from this workspace.
 ---
-<!-- GENERATED from src/skill-connect.md for claude — edit the source, then run: node tools/build-skills.mjs -->
+<!-- GENERATED from src/skill-connect.md for codex — edit the source, then run: node tools/build-skills.mjs -->
 
 # /catwrangler:connect — manage CatWrangler projects for this workspace
 
@@ -24,8 +22,10 @@ Arguments: `$verb` is `list` | `add` | `remove` | `connect`, and `$slug` is the
 project slug. Either may be empty — an empty `$verb` means run the interactive
 hub, and a verb that needs a slug without one means ask which project.
 
-Currently registered projects in this workspace (`.catwrangler`):
-!`node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" list`
+To read the projects registered in this workspace, run:
+```
+node scripts/manage.mjs list
+```
 
 ## Dispatch on `$verb`
 
@@ -34,7 +34,7 @@ otherwise the project chosen in the hub or named in conversation.
 
 Both `list` and the no-verb hub render the same thing — **the merged view**:
 
-1. Take the registered projects (injected above).
+1. Take the registered projects from the `list` command above.
 2. Fetch **available** projects via `list_projects` (see "Listing available") and
    merge, marking each `● connected`, `✓ registered`, or `+ available`. Match on
    slug **and** `org_slug`, and show the org whenever a slug appears twice.
@@ -43,20 +43,19 @@ The merged view needs **no** existing connection — render what you can from
 `.catwrangler` even with no server access, saying why the available half is
 missing. The two verbs differ only in what happens after it is on screen.
 
-**No verb — interactive hub:** render the merged view, then use
-`AskUserQuestion` to let the user add one or more available→registered, remove
+**No verb — interactive hub:** render the merged view, then ask the user to add one or more available→registered, remove
 one or more registered, or connect to one. Carry out the choice via the verbs
 below.
 
 **`list`** — render the merged view and **stop**. It is read-only: no
-`AskUserQuestion`, no follow-up offer, no changes to `.catwrangler`. A user who
+follow-up question, no offer to act, no changes to `.catwrangler`. A user who
 types `list` asked what exists, not what to do about it; if they want to act
 they will say so or run the bare hub.
 
 **`add <slug>`** — register in `.catwrangler`, reusing the id/name/description/org
 from the available list when you have it:
 ```
-node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>"
+node scripts/manage.mjs add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>"
 ```
 Pass `--id` whenever `list_projects` gave you one — it is what `connect` later
 feeds to `init_session`, so capturing it now is what lets a registered project
@@ -74,7 +73,7 @@ is still complete.
 **`remove <slug>`** — unregister from `.catwrangler` only; this does not touch any
 live session or server access:
 ```
-node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" remove --slug "<slug>"
+node scripts/manage.mjs remove --slug "<slug>"
 ```
 If that slug is registered under more than one org the script refuses and names
 the orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
@@ -97,7 +96,7 @@ persists:
    otherwise the first connect vanishes and the following session is surprised to
    find nothing configured:
    ```
-   node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --id "<id>"
+   node scripts/manage.mjs add --slug "<slug>" --id "<id>"
    ```
    Carry `--id "<id>"`, `--org "<org_slug>"`, `--name "<name>"`, and
    `--desc "<description>"` whenever `list_projects` gave you them (see "Listing
@@ -153,8 +152,8 @@ different answers, and only the tool's own empty `projects: []` means the latter
 - Never guess a connection target. If several registered/available projects
   plausibly match the user's task, ask which.
 - `manage.mjs` needs Node. If any invocation fails with `node: command not found`
-  (or the injected listing above is a command-not-found error), do not retry or
-  hand-edit `.catwrangler`: tell the user the CatWrangler plugin requires Node 18+
-  on `PATH` (https://nodejs.org, `brew install node`, or `nvm install --lts`) and
-  that the same gap disables the session-start hook. `connect` still works without
-  it — it only calls `init_session`.
+, do not retry or hand-edit
+  `.catwrangler`: tell the user the CatWrangler plugin requires Node 18+ on `PATH`
+  (https://nodejs.org, `brew install node`, or `nvm install --lts`) and that the
+  same gap disables the session-start hook. `connect` still works without it — it
+  only calls `init_session`.

@@ -17,18 +17,32 @@
 #
 # Requires a POSIX shell — macOS, Linux, WSL, or Windows with Git for Windows
 # (Claude Code runs hooks through Git Bash there).
+#
+# Shared by every host. $1 names the Node hook adapter to run, defaulting to the
+# Claude Code one so an existing hooks.json entry keeps working unchanged:
+#
+#   sh session-start.sh                          → session-start.mjs      (Claude Code)
+#   sh session-start.sh session-start-codex.mjs  → the Codex adapter
+#
+# Only the adapter differs per host; every notice below is host-neutral.
 
 set -u
 
-# Prefer the injected plugin root; hooks resolve relative paths against the
+# Prefer an injected plugin root; hooks resolve relative paths against the
 # process working directory, which is the session's cwd, not the plugin's.
-# `dirname "$0"` is the fallback for running this script by hand.
-if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+# CATWRANGLER_PLUGIN_ROOT is our own override, honored first so a host we have
+# not met can be pointed at the right place without a code change. Falling back
+# to `dirname "$0"` covers running this by hand and any host that invokes the
+# wrapper by its full path — which is the normal case, so the env vars are
+# belt-and-braces rather than load-bearing.
+if [ -n "${CATWRANGLER_PLUGIN_ROOT:-}" ]; then
+  DIR="$CATWRANGLER_PLUGIN_ROOT/scripts"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   DIR="$CLAUDE_PLUGIN_ROOT/scripts"
 else
   DIR=$(dirname "$0")
 fi
-HOOK="$DIR/session-start.mjs"
+HOOK="$DIR/${1:-session-start.mjs}"
 
 # Emit a hook JSON payload. $1 = user notice, $2 = model context. Both are
 # plain prose here (no quotes/backslashes), so literal interpolation is safe.
@@ -51,7 +65,7 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 if [ ! -f "$HOOK" ]; then
-  emit '\n\nCatWrangler plugin: session-start.mjs is missing from the plugin directory.\n  - The session bootstrap did not run — reinstall the plugin.' \
+  emit '\n\nCatWrangler plugin: the session bootstrap script is missing from the plugin directory.\n  - The session bootstrap did not run — reinstall the plugin.' \
        'The CatWrangler SessionStart hook script is missing, so the workspace bootstrap was skipped. Call the catwrangler MCP server init_session tool yourself and follow the protocol it returns.'
 fi
 
