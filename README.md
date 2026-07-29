@@ -177,6 +177,14 @@ Progress notifications do not extend the timer. Note that this value is also a
 floor on the idle timeout, so a genuinely stuck call takes 10 minutes to abort
 rather than the default 5.
 
+Codex splits the same concern into two fields, **in seconds**, so `.mcp.json`
+carries `tool_timeout_sec: 600` — the direct equivalent of Claude's 600000ms, and
+for the same reason — plus `startup_timeout_sec: 120`. Codex defaults those to 60
+and 10, both far too low here. Startup is deliberately *not* 600: Claude's single
+timer covers connect and calls alike, but splitting them means a dead endpoint
+would hang for ten minutes before failing. 120s is generous for a cold start plus
+an OAuth token refresh while still failing fast when the server is simply down.
+
 **Confinement** is by file-presence: the plugin does real work (the project menu
 + `init_session` instruction) only where a `.catwrangler` exists, so a user-global
 install never bootstraps the wrong project — no directory allowlist needed.
