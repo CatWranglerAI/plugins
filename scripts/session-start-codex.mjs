@@ -29,6 +29,7 @@ try {
   const { cwd, source } = readHookInput();
   emitSessionStart(buildBootstrap({ cwd, source }), { supportsInitialUserMessage: false });
 } catch {
-  // Absolute backstop — a hook must never crash the session.
-  process.exit(0);
+  // Absolute backstop — a hook must never crash the session. `{}` rather than
+  // silence, because Codex reads empty stdout as invalid JSON.
+  process.stdout.write('{}');
 }

@@ -35,10 +35,13 @@ set -u
 # to `dirname "$0"` covers running this by hand and any host that invokes the
 # wrapper by its full path — which is the normal case, so the env vars are
 # belt-and-braces rather than load-bearing.
+# Codex sets PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT; there is no CODEX_PLUGIN_ROOT.
 if [ -n "${CATWRANGLER_PLUGIN_ROOT:-}" ]; then
   DIR="$CATWRANGLER_PLUGIN_ROOT/scripts"
 elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   DIR="$CLAUDE_PLUGIN_ROOT/scripts"
+elif [ -n "${PLUGIN_ROOT:-}" ]; then
+  DIR="$PLUGIN_ROOT/scripts"
 else
   DIR=$(dirname "$0")
 fi
@@ -88,6 +91,13 @@ STATUS=$?
 if [ "$STATUS" -ne 0 ]; then
   emit '\n\nCatWrangler plugin: the session bootstrap hook failed to run under Node.\n  - Node may be too old — Node 18+ is required. Check with: node --version\n  - The session continues without the CatWrangler project menu.' \
        'The CatWrangler SessionStart hook exited with an error, so the workspace bootstrap was skipped. Call the catwrangler MCP server init_session tool yourself and follow the protocol it returns.'
+fi
+
+# Never hand the host empty stdout: Codex reads it as invalid JSON. The adapters
+# already emit `{}` when they have nothing to say; this covers any path that does
+# not reach them.
+if [ -z "$OUT" ]; then
+  OUT='{}'
 fi
 
 printf '%s' "$OUT"

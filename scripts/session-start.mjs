@@ -16,6 +16,7 @@ try {
   const { cwd, source } = readHookInput({ cwdEnvVar: 'CLAUDE_PROJECT_DIR' });
   emitSessionStart(buildBootstrap({ cwd, source }), { supportsInitialUserMessage: true });
 } catch {
-  // Absolute backstop — a hook must never crash the session.
-  process.exit(0);
+  // Absolute backstop — a hook must never crash the session. `{}` rather than
+  // silence, matching the Codex adapter.
+  process.stdout.write('{}');
 }

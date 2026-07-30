@@ -122,6 +122,11 @@ else
   fi
 fi
 
+# The goldens prove the adapters match their recorded behavior; they say nothing
+# about whether a host will ACCEPT it. Codex validates hook stdout strictly, so
+# the wire shape is checked against its schema separately.
+if node tests/codex-wire.mjs; then :; else status=1; fi
+
 for host in "${HOSTS[@]}"; do
   read -r manage hook <<<"$(adapters "$host")" || { echo "unknown host: $host" >&2; exit 2; }
   if [ ! -f "$manage" ] || [ ! -f "$hook" ]; then

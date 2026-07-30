@@ -45,9 +45,9 @@
 --- hook none resume
 {"systemMessage":"\n\nCatWrangler: not connected to a project in this directory.\n  - Run /catwrangler:connect to see your projects and connect to one."}exit=0
 --- hook none clear
-exit=0
+{}exit=0
 --- hook none compact
-exit=0
+{}exit=0
 --- hook none fork
 {"systemMessage":"\n\nCatWrangler: not connected to a project in this directory.\n  - Run /catwrangler:connect to see your projects and connect to one."}exit=0
 --- hook one startup

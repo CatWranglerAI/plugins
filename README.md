@@ -29,6 +29,7 @@ plugins/                                 ← repo root (github.com/CatWranglerAI
 ├── tools/build-skills.mjs               ← renders src/ → each host's SKILL.md
 ├── scripts/session-start.sh             ← wrapper: reports a missing/broken Node
 ├── tests/parity.sh                      ← golden transcripts; proves the hosts agree
+├── tests/codex-wire.mjs                 ← proves Codex will accept the hook's stdout
 ├── examples/sample.catwrangler          ← what the /connect flow generates
 │
 │   ── Claude Code ──
@@ -42,7 +43,7 @@ plugins/                                 ← repo root (github.com/CatWranglerAI
 │   └── scripts/manage.mjs               ← entry point; delegates to lib/
 │
 │   ── Codex ──
-├── .codex-plugin/plugin.json            ← manifest (skills → ./skills-codex/)
+├── .codex-plugin/plugin.json            ← manifest (points skills/hooks below)
 ├── .mcp.json                            ← MCP entry, bare map, seconds timeout
 ├── hooks.json                           ← SessionStart → session-start.sh
 ├── scripts/session-start-codex.mjs      ← adapter (~3 lines over lib/)
@@ -75,6 +76,24 @@ line that differs between them is that dropped opening turn — nothing else.
 Practically, an interactive Codex session gets the identical bootstrap; a
 headless one gets the instruction without a forced first turn.
 
+**What the Codex side depends on.** Four things, each load-bearing:
+
+- `.codex-plugin/plugin.json` declares `"hooks": "./hooks.json"`. Undeclared,
+  Codex reads `hooks/hooks.json` — Claude Code's.
+- Codex validates hook stdout strictly and rejects unknown fields, which is the
+  mechanism behind `initialUserMessage` going to Claude Code only.
+- Empty stdout is a parse error there, so a hook with nothing to say emits `{}`.
+- Codex sets `PLUGIN_ROOT` and `CLAUDE_PLUGIN_ROOT`, so `hooks.json` reads
+  `${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}`.
+
+`tests/codex-wire.mjs` checks the emitted shape against Codex's
+`session-start.command.output` schema, so a field it would reject fails by name
+in the suite instead.
+
+Codex also asks once before running a plugin's hooks, and again after the hook
+config changes; until it is accepted the hook does not run. `codex exec` skips an
+unaccepted hook rather than prompting, so accept it in an interactive session.
+
 ## Install
 
 **Claude Code:**
@@ -100,8 +119,8 @@ printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
   | sh scripts/session-start.sh session-start-codex.mjs   # Codex
 ```
 
-Run the full suite — both hosts' transcripts plus the SKILL.md staleness check —
-with `tests/parity.sh`. After an intentional change, re-record with
+Run the full suite — both hosts' transcripts, the Codex wire-shape check, and the
+SKILL.md staleness check — with `tests/parity.sh`. After an intentional change, re-record with
 `tests/parity.sh --update` and review the golden diff.
 
 Simulate a machine without Node (should print an install notice, exit 0):

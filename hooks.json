@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CODEX_PLUGIN_ROOT}/scripts/session-start.sh\" session-start-codex.mjs",
+            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\" session-start-codex.mjs",
             "statusMessage": "Connecting to CatWrangler",
             "additionalContextLimit": 8000
           }
