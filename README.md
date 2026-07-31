@@ -11,12 +11,8 @@ hand-written CLAUDE.md**. Installing the plugin does two things:
    tools, not `Read`/`Grep`/`cat`). This is the deterministic, app-less
    replacement for the CLAUDE.md bootstrap mandate.
 
-The protocol reaches a session by two routes, not one. A workspace that already
-has a `.catwrangler` gets it from the hook. The *first* session in a workspace
-has no `.catwrangler` when it starts, so the hook has nothing to bootstrap and the
-user connects by hand — which is why `/catwrangler:connect` carries the same
-rules. Both routes read them from `lib/protocol.mjs`; the skill's copy is
-substituted in at build time rather than retyped, so the two cannot drift.
+Connect a workspace once, with `/catwrangler:connect`, and every session started
+there picks the project up on its own from then on.
 
 ## Layout
 
@@ -68,8 +64,8 @@ rooted here and share `lib/` as a single copy — rooting Codex in a subdirector
 would force `lib/` to be duplicated, because a plugin install copies its root.
 
 **Why the SKILL.md files are generated.** They are the one thing that genuinely
-must exist twice: `${CLAUDE_SKILL_DIR}` and Claude Code's `` !`command` ``
-output-injection have no Codex equivalent. Symlinking is not an option — git
+must exist twice: Claude Code's `${CLAUDE_SKILL_DIR}` and its `$verb`/`$slug`
+argument substitution have no Codex equivalent. Symlinking is not an option — git
 stores a symlink as its path string, and a Windows checkout without
 `core.symlinks` (the default absent Developer Mode) writes a regular file
 *containing that path*, so the customer gets a SKILL.md whose entire content is
@@ -223,7 +219,7 @@ line on session start. (Project-scoped install also works; see Scopes.)
 One skill manages which projects this workspace is connected to. A project is
 **connected** (recorded in `.catwrangler`, so every session started here reaches
 it automatically) or **available** (reachable per the server, not set up here
-yet). Two states, and that is the whole user-facing model.
+yet). Two states, and that is all there is to it.
 
 ```
 /catwrangler:connect                 # interactive hub: show state, then connect/disconnect
@@ -236,18 +232,14 @@ yet). Two states, and that is the whole user-facing model.
 `list` and the bare hub render the same view; `list` just stops there instead of
 offering to change anything.
 
-**There is deliberately no `connect` verb.** `/catwrangler:connect connect` was
-both redundant and misleading: it presented connecting as a per-session act the
-user performs, when `init_session` already happens on its own at session start.
-`add` now does the whole job — `init_session` first (it is the step that can
-fail), then the `.catwrangler` write that makes it permanent. The old spelling is
-still accepted silently so nobody's muscle memory breaks.
+Connecting is something you do to a **workspace**, not to a session. You do it
+once; sessions started there open the project on their own afterwards. Nothing
+here needs running again unless you want to connect another project or disconnect
+one.
 
-Whether *this* session has called `init_session` for a project is real, but it is
-diagnostic rather than a state: the skill shows it as an annotation on a connected
-row (`· session active as "swift-otter"`), never as a third category. Three states
-had users hunting for which one they were supposed to reach; there was no such
-goal.
+Where a session already has a project open, the listing notes it on that row —
+`· session active as "swift-otter"`. It is there to answer "what am I attached to
+right now", and a connected project with no session is perfectly normal.
 
 The skill drives all server interaction and the `AskUserQuestion` prompts; the
 bundled `manage.mjs` owns every `.catwrangler` read/write, so JSON shape,
@@ -255,8 +247,9 @@ dedup-by-slug, and unknown-field preservation are deterministic (the model never
 hand-edits the file). `manage.mjs` references itself via `${CLAUDE_SKILL_DIR}` and
 does no network I/O.
 
-`list available` calls the server's `list_projects` MCP tool, which needs no
-`init_session` — the menu is available before you connect to anything. Entries
+The available half of the listing comes from the server's `list_projects` tool,
+which needs no `init_session` — so you can see what exists before connecting
+anything. Entries
 carry `slug`, `name`, `org_slug`, and an optional `description`. They carry no
 host: one connector still maps to one project, so the list tells you what exists
 rather than letting you reach another deployment.
