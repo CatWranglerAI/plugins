@@ -1,29 +1,48 @@
 ---
-description: Manage this workspace's CatWrangler projects — list available, register or remove them in this workspace (.catwrangler), and connect (init_session).
+description: Manage which CatWrangler projects this workspace is connected to — show what is connected and what is available, and connect or disconnect one.
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" *)
-argument-hint: "[list|add|remove|connect] [slug]"
+argument-hint: "[list|add|remove] [slug]"
 arguments: [verb, slug]
 ---
 <!-- GENERATED from src/skill-connect.md for claude — edit the source, then run: node tools/build-skills.mjs -->
 
 # /catwrangler:connect — manage CatWrangler projects for this workspace
 
-You manage which CatWrangler projects this workspace knows about, and can connect
-to one. Every project is in one or more of three states:
+You manage which CatWrangler projects this workspace is connected to. A project
+is in exactly one of two states:
 
-- **available** — reachable per the server (this user can access it)
-- **registered** — recorded in this workspace's `.catwrangler` file (the registry)
-- **connected** — you have called `init_session` for it in this session
+- **connected** — recorded in this workspace's `.catwrangler`, so every session
+  started here reaches it automatically
+- **available** — this user can reach it per the server, but this workspace is
+  not set up for it yet
 
-They stack in that order in the common case, but they are independent: you can
-connect to a project that was never registered, and registering one grants no
-access it did not already have. Say **registered**, never "listed" — every
-project `list` prints is listed, so that word cannot distinguish a state.
+That is the whole model the user needs. Connecting is a property of the
+**workspace**, not something they do each session: once a project is connected it
+stays connected, and sessions pick it up on their own.
 
-This invocation's verb: `$verb` — one of `list`, `add`, `remove`,
-`connect`, or empty. Its slug: `$slug` — empty when no project was
-named. An empty verb means run the interactive hub; a verb that needs a slug and
-has none means ask which project.
+Whether *this particular session* has already called `init_session` is a third
+fact, and it is diagnostic detail rather than a state. Show it as an annotation
+on a connected project (see "Active session"), never as a category of its own. A
+user shown three states starts trying to work out which one they are supposed to
+reach; there is no such goal, and inventing one is the confusion this command
+exists to avoid.
+
+Say **connected** — not "registered", not "listed". Every project `list` prints
+is listed, so that word cannot distinguish anything, and "registered" describes
+the file rather than what the user gets from it.
+
+This invocation's verb: `$verb` — `list`, `add`, `remove`, or empty. Its
+slug: `$slug` — empty when no project was named. An empty verb
+means run the interactive hub; a verb that needs a slug and has none means ask
+which project.
+
+Two things people type that are not verbs, both of which you should just handle:
+
+- **A bare slug** (`/catwrangler:connect arcade`) means `add arcade`. Naming a
+  project is the obvious way to ask for it; do not make them find the verb.
+- **`connect`** is an old spelling of `add`. Accept it and do the work. Do not
+  correct them, and do not explain that the verb went away — `/catwrangler:connect
+  connect` was always redundant, and the fix for that is silence, not a lecture.
 
 **First, read the workspace registry.** Every verb below builds on what it
 returns, so run it before anything else:
@@ -46,102 +65,117 @@ the hub or named in conversation.
 
 Both `list` and the no-verb hub render the same thing — **the merged view**:
 
-1. Take the registered projects from the `list` command above.
+1. Take the connected projects from the `list` command above.
 2. Fetch **available** projects via `list_projects` (see "Listing available") and
-   merge, marking each `● connected`, `✓ registered`, or `+ available`. Match on
-   slug **and** `org_slug`, and show the org whenever a slug appears twice.
+   merge, marking each `● connected` or `+ available`. Match on slug **and**
+   `org_slug`, and show the org whenever a slug appears twice.
+3. Annotate any project this session has an active `init_session` for — see
+   "Active session". Secondary detail, after the state, never instead of it.
 
 The merged view needs **no** existing connection — render what you can from
 `.catwrangler` even with no server access, saying why the available half is
 missing. The two verbs differ only in what happens after it is on screen.
 
 **No verb — interactive hub:** render the merged view, then use
-`AskUserQuestion` to let the user add one or more available→registered, remove
-one or more registered, or connect to one. Carry out the choice via the verbs
-below.
+`AskUserQuestion` to let the user connect one or more available projects, or
+disconnect one or more connected ones. Carry out the choice via the verbs below.
 
 **`list`** — render the merged view and **stop**. It is read-only: no
 `AskUserQuestion`, no follow-up offer, no changes to `.catwrangler`. A user who
 types `list` asked what exists, not what to do about it; if they want to act
 they will say so or run the bare hub.
 
-**`add <slug>`** — register in `.catwrangler`, reusing the id/name/description/org
-from the available list when you have it:
-```
-node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>"
-```
-Pass `--id` whenever `list_projects` gave you one — it is what `connect` later
-feeds to `init_session`, so capturing it now is what lets a registered project
-connect unambiguously. Pass `--org` too — it is what keeps two orgs'
-same-named projects as two entries instead of one overwriting the other. The
-response echoes `ambiguous: true` when the registry ends up holding more than one
-project with that slug; when it does, show the org next to each.
-The script is idempotent (updates in place if already registered). Report the
-result — and when this is the first project registered in the workspace, also
-tell the user setup is done (see "Say it is set up"); registering is what arms
-the automatic connection, so `add` earns that message as much as `connect` does.
-It fills the file's `server`/`mcp_url` from the endpoint the plugin already
-bundles, so do **not** pass `--server`/`--mcp-url` unless the user names a
-different server — those flags are an override, and a file created without them
-is still complete.
+**`add <slug>`** — connect this workspace to a project: **available → connected**.
+There is no separate "connect" step; this verb is the whole of it, in three parts.
 
-**`remove <slug>`** — unregister from `.catwrangler` only; this does not touch any
-live session or server access:
-```
-node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" remove --slug "<slug>"
-```
-If that slug is registered under more than one org the script refuses and names
-the orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
+1. **Open it now.** Call the `catwrangler` MCP server's `init_session` for that
+   project, passing its `id` as init_session's `project_id` parameter when you have
+   one (from the `.catwrangler` entry or `list_projects`) — that pins the exact
+   project rather than relying on a slug the server would have to disambiguate.
+   Fall back to the slug only when no id is recorded.
 
-**`connect <slug>`** — connect a session **and** register the project so it
-persists:
+   This comes first because it is the step that can fail. If `init_session` errors,
+   **stop and report it — do not record the project**: a registry entry for a
+   project the server will not open does not fix anything, it just moves the same
+   failure into the user's next session. The exception is an explicit ask to record
+   a project without opening it (offline, or setting up a workspace for later);
+   honour that, and say plainly that it is untested.
 
-1. Call the `catwrangler` MCP server's `init_session` for that project, passing
-   the project's `id` as init_session's `project_id` parameter when you have one
-   (from the `.catwrangler` entry or `list_projects`) — that pins the exact project rather
-   than relying on a slug the server would have to disambiguate. Fall back to the
-   slug only when no id is recorded. Connecting does not require the project to be
-   registered first.
 2. **Adopt the session protocol below** for the rest of this session. Do not skip
    this because `init_session` already returned: the two are different halves of
    the same setup, and reading the protocol is what makes the connection usable.
-3. Once `init_session` succeeds, register the project in `.catwrangler` with the
-   same idempotent `add` the `add` verb uses, so the next session starts with it
-   already registered and the session-start hook connects to it automatically —
-   otherwise the first connect vanishes and the following session is surprised to
-   find nothing configured:
+
+3. **Record it**, so this is permanent and no future session has to repeat it:
    ```
-   node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --id "<id>"
+   node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>"
    ```
-   Carry `--id "<id>"`, `--org "<org_slug>"`, `--name "<name>"`, and
-   `--desc "<description>"` whenever `list_projects` gave you them (see "Listing
-   available") — the `id` is what lets the *next* session connect unambiguously,
-   and `--org` keeps two orgs' same-named projects distinct. Skip this step only if
-   the user explicitly asked for a one-off connection without registering it; `add`
-   is idempotent, so re-registering an already-registered project just refreshes it.
-4. **Tell the user setup is done and permanent** — see "Say it is set up" below.
-   This is part of the verb, not a nicety: without it they will assume the command
-   is a per-session ritual.
+   Carry `--id`, `--org`, `--name`, and `--desc` whenever `list_projects` gave you
+   them. `--id` is what lets the *next* session open the project unambiguously, and
+   `--org` is what keeps two orgs' same-named projects as two entries instead of one
+   overwriting the other. The response echoes `ambiguous: true` when the file ends
+   up holding more than one project with that slug; when it does, show the org next
+   to each. The script is idempotent — running it for an already-connected project
+   just refreshes the details.
+
+   It fills the file's `server`/`mcp_url` from the endpoint the plugin already
+   bundles, so do **not** pass `--server`/`--mcp-url` unless the user names a
+   different server — those flags are an override, and a file written without them
+   is still complete.
+
+Then report the result, and **tell the user it is permanent** — see "Say it is set
+up". That is part of the verb, not a flourish on the end of it: skipping it is
+what leaves people believing they have to do this again tomorrow.
+
+**`remove <slug>`** — disconnect this workspace from a project: **connected →
+available**. It edits `.catwrangler` and nothing else. It does not end a live
+session, and it does not touch the user's access — the project goes back to
+available, not away. Say that, so nobody reads it as losing something.
+```
+node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" remove --slug "<slug>"
+```
+If that slug is connected under more than one org the script refuses and names the
+orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
+
+## Active session
+
+A connected project may or may not have been opened by *this* session — via the
+session-start bootstrap, or an `add` you just ran. When it has, note it on that
+project's row, after the state:
+
+```
+● connected   arcade (Arcade Platform)   · session active as "swift-otter"
++ available   neon-racer (Neon Racer)
+```
+
+Use the agent name when `init_session` gave you one, the `agent_id` when that is
+all you have, and a bare "session active" when neither. Never promote this to a
+state of its own, and never let it replace `● connected`: a project is connected
+whether or not this session happens to have opened it, and that distinction is the
+one the user is actually reading for.
+
+When nothing is open, say nothing — an absent annotation is not a problem to
+report. Sessions open projects when there is work to do, and a connected project
+with no session is the normal resting state, not a job half done.
 
 ## The session protocol
 
-At the start of a session in an already-registered workspace, these rules arrive
-automatically and you never see this section. Connecting by hand is the case
-where they do not — the workspace had nothing registered when the session began,
+In a workspace that was already connected to a project, these rules arrive
+automatically at session start and you never see this section. `add` is the case
+where they do not — the workspace had nothing connected when the session began,
 so no bootstrap ran. **That is now — adopt them here, and hold to them for the
 rest of the session:**
 
 - init_session returns an `agent_id`. Remember it, and include it as `_agent_id: "<agent_id>"` in the body of EVERY subsequent call to this server — calls without it are rejected. Each CatWrangler instance you connect to issues its OWN agent_id; use the matching one per server and never reuse one instance's agent_id on another. After an AUTH_REQUIRED error or a reconnect, call init_session with `reclaim_agent_id: "<agent_id>"` to recover without losing your branch or work — do not re-init without it.
 - You have NO local source code or decision files for the project — it all lives on the CatWrangler server behind its SCCS gates. Use the server's MCP tools (get_task_briefing, grep_code, read_code, list_files, search_decisions) for ALL code and decision access; do NOT use local file tools (Read, Grep, Glob, cat) to explore the project. The only local files are CLAUDE.md and Docs/.
 - Whatever init_session returns is the authority on how to work this project — read it and follow it, even where it goes beyond these lines.
-- The workspace's `.catwrangler` file is a convenience cache, not the source of truth. If the user references a project not registered there, call init_session to get the authoritative, current list from the server.
+- The workspace's `.catwrangler` file is a convenience cache, not the source of truth. If the user references a project this workspace is not connected to, call init_session to get the authoritative, current list from the server.
 
 ## Say it is set up
 
-Once a `connect` or `add` succeeds, the workspace is configured for good, and
-saying so is part of the job — not a nicety appended to it:
+Once `add` succeeds, the workspace is connected for good, and saying so is part
+of the job — not a nicety appended to it:
 
-Connecting is automatic and persistent: every future session started in this directory connects on its own at startup, with no /catwrangler:connect and no other setup step. Do not let the user believe otherwise — if they ask whether they need to connect, or reach for the command out of habit, tell them plainly that they are already correctly configured. The command is for adding, removing, or switching projects; re-running it is harmless, just unnecessary.
+Connecting is automatic and persistent: every future session started in this directory connects on its own at startup, with no /catwrangler:connect and no other setup step. Do not let the user believe otherwise — if they ask whether they need to connect, or reach for the command out of habit, tell them plainly that they are already correctly configured. The command is for connecting or disconnecting projects; re-running it is harmless, just unnecessary.
 
 Put it in your own words, briefly, as part of reporting the result. Nothing in an
 ordinary session will confirm it later — the hook is silent when it works — so
@@ -167,9 +201,9 @@ reach for it before connecting, not after. It returns:
 
 - `id` is the server-assigned project id (opaque, shaped like `p-841207` — never
   derive it from the slug). **Carry it into `add`** and it becomes the connection
-  key: `connect` feeds it to `init_session` as its `project_id` parameter, which
-  pins the exact project without the slug's org-scoping ambiguity. Older servers
-  may omit it; connect by slug then.
+  key: `add` feeds it to `init_session` as its `project_id` parameter, which pins
+  the exact project without the slug's org-scoping ambiguity. Older servers may
+  omit it; connect by slug then.
 - `description` is optional — older projects have none. Show the name alone.
 - `org_slug` is always present and **must be carried into `add`**: slugs are
   unique only within an org, so two orgs can both have an `arcade`. When the merged
@@ -180,18 +214,18 @@ reach for it before connecting, not after. It returns:
 
 If the tool is missing from this server, or returns `PROJECT_LIST_UNAVAILABLE`
 (503, the control plane is unreachable), say so plainly and carry on with the
-registered half + add/remove/connect, which all work without it. Do **not** present
+connected half + add/remove, which all work without it. Do **not** present
 an empty list as "you have no projects" — a failed lookup and genuinely having none are
 different answers, and only the tool's own empty `projects: []` means the latter.
 
 ## Rules
 
 - `.catwrangler` is a convenience cache, not the source of truth — the server is
-  authoritative for what is reachable. If the user names a project not registered
-  here, do not assume it is invalid; connect and let the server confirm.
-- Editing `.catwrangler` only changes the local registry; it never grants or revokes
-  server access.
-- Never guess a connection target. If several registered/available projects
+  authoritative for what is reachable. If the user names a project that is not
+  connected here, do not assume it is invalid; open it and let the server confirm.
+- Editing `.catwrangler` only changes which projects this workspace is connected
+  to; it never grants or revokes the user's access on the server.
+- Never guess a connection target. If several connected/available projects
   plausibly match the user's task, ask which.
 
 ## When manage.mjs fails
@@ -204,15 +238,19 @@ they can do, every time:
 - **`node: command not found`** — the plugin requires Node 18+ on `PATH`. Point
   them at https://nodejs.org, `brew install node`, or `nvm install --lts`, and
   tell them the same gap disables the session-start hook, so this is worth fixing
-  once rather than working around. `connect` still works meanwhile: it only calls
-  `init_session`, which needs no Node.
-- **`.catwrangler is not valid JSON`** — the registry is corrupt. Show them the
-  path from the error and offer to regenerate it by re-adding their projects.
-  Do not hand-edit it and do not delete it without asking.
+  once rather than working around. You can still open a project for them in the
+  meantime — `init_session` is an MCP call and needs no Node — it just will not
+  stick past this session.
+- **`.catwrangler is not valid JSON`** — the file is corrupt, so this workspace
+  cannot say what it is connected to. Show them the path from the error and offer
+  to rebuild it by connecting their projects again. Do not hand-edit it, and do
+  not delete it without asking.
 - **Anything else** — report the error text verbatim and stop. Do not
   hand-edit `.catwrangler` to route around a script that is not working.
 
 In every case the other half of the skill still works: `list_projects` and
 `init_session` are MCP calls with no Node involved, so you can usually still show
-the user what projects exist and connect them, even when the registry is
-unreachable. Do that, and be explicit that the registration half is what failed.
+the user what projects exist and open one for them, even when `.catwrangler` is
+unreachable. Do that, and be explicit about which half failed — they got a working
+session, but the workspace did not record it, so the next session will not have
+it.

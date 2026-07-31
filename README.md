@@ -220,23 +220,34 @@ line on session start. (Project-scoped install also works; see Scopes.)
 
 ## Managing projects — `/catwrangler:connect`
 
-One skill manages this workspace's project registry and connects sessions. Every
-project is **available** (reachable per the server), **registered** (recorded in
-`.catwrangler`), or **connected** (`init_session` called this session). They
-normally stack in that order, but they are independent: you can connect to a
-project that was never registered, and registering one grants no access it did
-not already have.
+One skill manages which projects this workspace is connected to. A project is
+**connected** (recorded in `.catwrangler`, so every session started here reaches
+it automatically) or **available** (reachable per the server, not set up here
+yet). Two states, and that is the whole user-facing model.
 
 ```
-/catwrangler:connect                 # interactive hub: show state, then add/remove/connect
+/catwrangler:connect                 # interactive hub: show state, then connect/disconnect
 /catwrangler:connect list            # read-only: show every project and its state
-/catwrangler:connect add <slug>      # register a project in .catwrangler (idempotent)
-/catwrangler:connect remove <slug>   # unregister from .catwrangler (does not touch sessions)
-/catwrangler:connect connect <slug>  # init_session for that project, then register it (persists) + follow protocol
+/catwrangler:connect add <slug>      # connect this workspace to a project (available → connected)
+/catwrangler:connect remove <slug>   # disconnect it (connected → available; access unaffected)
+/catwrangler:connect <slug>          # bare slug — same as `add <slug>`
 ```
 
 `list` and the bare hub render the same view; `list` just stops there instead of
 offering to change anything.
+
+**There is deliberately no `connect` verb.** `/catwrangler:connect connect` was
+both redundant and misleading: it presented connecting as a per-session act the
+user performs, when `init_session` already happens on its own at session start.
+`add` now does the whole job — `init_session` first (it is the step that can
+fail), then the `.catwrangler` write that makes it permanent. The old spelling is
+still accepted silently so nobody's muscle memory breaks.
+
+Whether *this* session has called `init_session` for a project is real, but it is
+diagnostic rather than a state: the skill shows it as an annotation on a connected
+row (`· session active as "swift-otter"`), never as a third category. Three states
+had users hunting for which one they were supposed to reach; there was no such
+goal.
 
 The skill drives all server interaction and the `AskUserQuestion` prompts; the
 bundled `manage.mjs` owns every `.catwrangler` read/write, so JSON shape,
