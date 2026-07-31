@@ -46,8 +46,22 @@ adapters() {
 [ ${#HOSTS[@]} -eq 0 ] && HOSTS=(claude codex)
 
 # Workspace fixtures: one per registry shape the bootstrap branches on.
+#
+# Two homes, because the hunt ends at the home directory and the fixtures need
+# both answers: `home-empty` is the machine where nothing is connected globally
+# (so a directory with no registry above it really is unconnected), `home-reg`
+# holds one (so the home fallback fires). Every invocation below sets HOME to one
+# of them — never the real one, or the goldens would record whether the person
+# running the suite happens to have a ~/.catwrangler.
 make_fixtures() {
   local w=$1
+  mkdir -p "$w/home-empty" "$w/home-reg"
+  echo '{"version":1,"server":"https://mcp.catwrangler.ai","projects":[{"slug":"global","id":"p-000001","name":"Global"}]}' > "$w/home-reg/.catwrangler"
+  # Ancestor hunt: the registry is at fix/nested, the session starts three deep.
+  mkdir -p "$w/fix/nested/src/api/handlers"
+  cat > "$w/fix/nested/.catwrangler" <<'EOF'
+{"version":1,"server":"https://mcp.catwrangler.ai","projects":[{"slug":"arcade","id":"p-841207","org_slug":"pixel","name":"Arcade Platform","description":"Cross-game plane."}]}
+EOF
   mkdir -p "$w/fix/none" "$w/fix/one" "$w/fix/many" "$w/fix/zero" "$w/fix/bad" "$w/fix/routed"
   cat > "$w/fix/one/.catwrangler" <<'EOF'
 {"version":1,"server":"https://mcp.catwrangler.ai","mcp_url":"https://mcp.catwrangler.ai/mcp","projects":[{"slug":"arcade","id":"p-841207","org_slug":"pixel","name":"Arcade Platform","description":"Cross-game plane."}]}
@@ -71,6 +85,14 @@ transcript() {
   local manage=$1 hook=$2 w=$3
   local d="$w/registry"
   rm -rf "$d"; mkdir -p "$d"
+  # Default for everything below; the home-fallback cases override it inline.
+  # The hunt reads HOME, so leaving the real one in place would record the
+  # runner's own ~/.catwrangler (or absence of one) in the golden.
+  export HOME="$w/home-empty"
+  # Same hazard from the other side: the Claude adapter falls back to
+  # CLAUDE_PROJECT_DIR when a payload carries no cwd, and running this suite from
+  # inside a Claude Code session would supply one.
+  unset CLAUDE_PROJECT_DIR
 
   # Registry CRUD: creation, org disambiguation, in-place refresh, the
   # ambiguous-remove refusal, and every error path. The two solo adds after the
@@ -100,6 +122,40 @@ transcript() {
   echo "--- registry file"
   cat "$d/.catwrangler"
 
+  # The hunt, on the write side. What matters here is not that `list` finds a
+  # parent's registry but that `add` UPDATES it instead of shadowing it with a
+  # second file three directories down — so the file listing is the assertion.
+  local h="$w/hunt"
+  rm -rf "$h"; mkdir -p "$h/repo/src/api" "$h/loose" "$h/loose2"
+  echo '{"version":1,"projects":[{"slug":"repo-proj","id":"p-500001"}]}' > "$h/repo/.catwrangler"
+  for spec in \
+    "list --dir $h/repo/src/api" \
+    "add --slug deep --dir $h/repo/src/api" \
+    "remove --slug deep --dir $h/repo/src/api" \
+    "list --dir $h/loose"
+  do
+    echo "--- hunt $spec"
+    node "$manage" $spec
+    echo "exit=$?"
+  done
+
+  # Same commands with a home registry in scope: it is READ from anywhere, and
+  # never written from anywhere but itself — `add` lands in cwd, `remove` refuses
+  # and says where the projects actually live.
+  for spec in \
+    "list --dir $h/loose" \
+    "add --slug fromhome --dir $h/loose" \
+    "remove --slug global --dir $h/loose2" \
+    "list --dir $w/home-reg" \
+    "remove --slug global --dir $w/home-reg"
+  do
+    echo "--- hunt(home) $spec"
+    HOME="$w/home-reg" node "$manage" $spec
+    echo "exit=$?"
+  done
+  echo "--- hunt files"
+  find "$h" -name .catwrangler | sort
+
   # Bootstrap: every registry shape against every session source.
   for f in none one many routed zero bad; do
     for src in startup resume clear compact fork; do
@@ -108,8 +164,33 @@ transcript() {
       echo "exit=$?"
     done
   done
-  echo "--- hook empty stdin";   echo ''         | node "$hook"; echo "exit=$?"
-  echo "--- hook garbage stdin"; echo 'not json' | node "$hook"; echo "exit=$?"
+  # Bootstrap through the hunt. A session three directories inside a configured
+  # repo must produce the connected bootstrap, not the not-connected nudge — the
+  # whole reason the hunt exists.
+  for src in startup clear; do
+    echo "--- hook nested-subdir $src"
+    echo "{\"cwd\":\"$w/fix/nested/src/api/handlers\",\"source\":\"$src\",\"hook_event_name\":\"SessionStart\"}" | node "$hook"
+    echo "exit=$?"
+  done
+
+  # Home fallback: the SAME directory that reports not-connected above, run on a
+  # machine whose home directory has a registry. The diff between these two is
+  # the fallback's entire behavior.
+  for src in startup clear; do
+    echo "--- hook home-fallback $src"
+    echo "{\"cwd\":\"$w/fix/none\",\"source\":\"$src\",\"hook_event_name\":\"SessionStart\"}" | HOME="$w/home-reg" node "$hook"
+    echo "exit=$?"
+  done
+  # A directory with its own registry ignores the home one — nearest wins, no merge.
+  echo "--- hook nearest-wins startup"
+  echo "{\"cwd\":\"$w/fix/one\",\"source\":\"startup\",\"hook_event_name\":\"SessionStart\"}" | HOME="$w/home-reg" node "$hook"
+  echo "exit=$?"
+
+  # No usable payload: cwd is the fallback, so run these from a fixture rather
+  # than the repo — otherwise the hunt walks the checkout's real ancestors and
+  # the golden records whatever happens to be above it on this machine.
+  echo "--- hook empty stdin";   (cd "$w/fix/none" && echo ''         | node "$ROOT/$hook"); echo "exit=$?"
+  echo "--- hook garbage stdin"; (cd "$w/fix/none" && echo 'not json' | node "$ROOT/$hook"); echo "exit=$?"
 }
 
 mkdir -p "$GOLD"
@@ -148,8 +229,10 @@ for host in "${HOSTS[@]}"; do
   make_fixtures "$work"
   out=$(mktemp)
   transcript "$manage" "$hook" "$work" > "$out" 2>&1
-  # Normalize the scratch path so the golden is machine-independent.
-  sed -i.bak "s#$work#<WORK>#g" "$out" && rm -f "$out.bak"
+  # Normalize the scratch path so the golden is machine-independent. The
+  # /private form first: macOS resolves the symlinked temp root when a process
+  # actually cd's there, so the same directory reaches the transcript both ways.
+  sed -i.bak -e "s#/private$work#<WORK>#g" -e "s#$work#<WORK>#g" "$out" && rm -f "$out.bak"
 
   if [ "$UPDATE" = "1" ]; then
     cp "$out" "$GOLD/$host.txt"

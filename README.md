@@ -5,7 +5,8 @@ hand-written CLAUDE.md**. Installing the plugin does two things:
 
 1. **Registers the CatWrangler MCP server** (bundled — the user never types a URL).
 2. **Injects the CatWrangler bootstrap protocol at session start**, read from a
-   `.catwrangler` file in the workspace: the reachable-project menu, the mandatory
+   `.catwrangler` file — found from the current directory, any parent, or your
+   home directory — carrying the reachable-project menu, the mandatory
    `init_session` call, the `agent_id`/`_agent_id` discipline (kept separate per
    instance, recoverable on reconnect), and the no-local-source rule (use MCP
    tools, not `Read`/`Grep`/`cat`). This is the deterministic, app-less
@@ -24,7 +25,7 @@ plugins/                                 ← repo root (github.com/CatWranglerAI
 │
 │   ── shared: one copy, both hosts ──
 ├── lib/                                 ← everything the plugin actually does
-│   ├── registry.mjs                     ← .catwrangler read/write, pure functions
+│   ├── registry.mjs                     ← .catwrangler find/read/write, pure functions
 │   ├── manage-cli.mjs                   ← argv → JSON stdout, exit codes
 │   ├── bootstrap.mjs                    ← what SessionStart tells the model
 │   ├── protocol.mjs                     ← the session rules BOTH paths deliver
@@ -159,6 +160,27 @@ exact project; `slug`, `org_slug`, `name`, and `description` come from
 `list_projects`. Entries written before ids were captured have none and connect by
 slug.
 
+### Where it is looked for
+
+Sessions start wherever the work is, so the file is found the way `CLAUDE.md` is:
+the current directory, then each parent up to the filesystem root, then the user's
+home directory. A session in `repo/src/api` is connected to whatever `repo` is
+connected to.
+
+**The nearest one wins, and they do not merge.** A repo's registry replaces the
+home one rather than adding to it — this file is a routing menu, and merging would
+drop your global projects into every repo session as choices the model has to make
+on each task. `~/.catwrangler` is a fallback for directories no project claims,
+not a base layer.
+
+Writes follow the same path with one stop short. `add`/`remove` update an
+ancestor's file in place — that *is* this workspace's registry, and writing a
+second copy into a subdirectory would shadow it. They will not write the home
+registry from elsewhere, because it governs every unclaimed directory on the
+machine; connecting a project from some unrelated folder creates a `.catwrangler`
+*there* instead. To edit the home one, run the command from your home directory
+(or pass `--dir`).
+
 It is a **convenience cache, not the source of truth.** The hook tells the model
 to fall back to `init_session` (the server) whenever the user references a project
 not registered here. This is deliberate: a stale local file must never override live
@@ -177,8 +199,9 @@ once MCP is up.
 | Non-interactive run (`claude -p`) | Also supplies an opening turn — connect, then summarize what's new — so a headless session never starts work unconnected. Interactive sessions ignore it; not sent on `clear`/`compact` |
 | `.catwrangler` present, 1 project | Instructs a deterministic connect to that project |
 | `.catwrangler` present, 0 projects | Instructs the model to fetch the list from `init_session` |
-| No `.catwrangler` | One-line notice: not connected here, run `/catwrangler:connect`. Only on real session starts, not `clear`/`compact`. No model instruction (nothing to connect to) |
-| `.catwrangler` malformed | User-visible notice, no crash |
+| `.catwrangler` in a parent, or in `~` | Same as above — it governs this directory. The notice names the file, since it is not where the user is standing |
+| No `.catwrangler` anywhere above | One-line notice: not connected here, run `/catwrangler:connect`. Only on real session starts, not `clear`/`compact`. No model instruction (nothing to connect to) |
+| `.catwrangler` malformed | User-visible notice naming the file, no crash |
 | Node.js not on `PATH` | User-visible "install Node 18+" notice + a model-facing note that the bootstrap was skipped; session continues |
 | Node present but the hook errors | Same shape, pointing at `node --version` |
 

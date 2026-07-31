@@ -9,14 +9,27 @@ description: Manage which CatWrangler projects this workspace is connected to �
 You manage which CatWrangler projects this workspace is connected to. A project
 is in exactly one of two states:
 
-- **connected** — recorded in this workspace's `.catwrangler`, so every session
-  started here reaches it automatically
-- **available** — this user can reach it per the server, but this workspace is
+- **connected** — recorded in the `.catwrangler` that governs this directory, so
+  every session started here reaches it automatically
+- **available** — this user can reach it per the server, but this directory is
   not set up for it yet
 
 That is the whole model the user needs. Connecting is a property of the
 **workspace**, not something they do each session: once a project is connected it
 stays connected, and sessions pick it up on their own.
+
+"This workspace" is wider than the current directory. `manage.mjs` hunts for
+`.catwrangler` the way Claude finds `CLAUDE.md`: the current directory first,
+then each parent, then the user's home directory. The nearest one wins outright —
+they do **not** merge, so a repo's registry replaces the home one rather than
+adding to it. That is why a session started in `repo/src/api` is connected to
+whatever `repo` is connected to, and it is why `list` reports a `path` and a
+`scope` (`cwd`, `ancestor`, `home`, or `none`) alongside the projects.
+
+Mention where the file lives only when `scope` is not `cwd`. In the current
+directory it is the assumed case and saying it is noise; from a parent or from
+home it is the answer to the question the user is about to ask, so give the path
+with the result rather than making them ask for it.
 
 Whether *this particular session* has already called `init_session` is a third
 fact, and it is diagnostic detail rather than a state. Show it as an annotation
@@ -121,6 +134,20 @@ There is no separate "connect" step; this verb is the whole of it, in three part
    different server — those flags are an override, and a file written without them
    is still complete.
 
+   **It picks the file, and it is not always the one in front of you.** An
+   existing registry in a parent directory is updated in place — that is the
+   workspace's registry, and dropping a second file into a subdirectory would
+   shadow it. The one exception is the home registry: a project connected from
+   somewhere else gets a **new** `.catwrangler` in the current directory instead,
+   because `~/.catwrangler` governs every unclaimed directory on the machine and
+   must not change because of work done in one of them. The response's `path` says
+   which file was written; when it is not in the current directory, say so.
+
+   That new file also **takes over** the directory, because nearest wins: the home
+   registry's projects stop applying here. Tell the user, and if any of them
+   mattered, `add` them here too — this is the one case where connecting a project
+   quietly disconnects another.
+
 If this `add` leaves the workspace with **two or more** projects, also settle how
 sessions tell them apart — see "Telling projects apart". Do it now, while the user
 is here and thinking about it.
@@ -138,6 +165,12 @@ node scripts/manage.mjs remove --slug "<slug>"
 ```
 If that slug is connected under more than one org the script refuses and names the
 orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
+
+`remove` edits the same file `add` would, so it too refuses to touch the home
+registry from elsewhere — it fails and names the file and the directory to run it
+from. Pass that on as it stands: the projects are connected, just not here, and
+the fix is to run the command from that directory (or `--dir` it) rather than
+anything the user needs to repair.
 
 ## Telling projects apart
 
@@ -288,10 +321,12 @@ broken with no explanation. Say what failed and what they can do, every time:
   once rather than working around. You can still open a project for them in the
   meantime — `init_session` is an MCP call and needs no Node — it just will not
   stick past this session.
-- **`.catwrangler is not valid JSON`** — the file is corrupt, so this workspace
-  cannot say what it is connected to. Show them the path from the error and offer
-  to rebuild it by connecting their projects again. Do not hand-edit it, and do
-  not delete it without asking.
+- **`<path> is not valid JSON`** — the file is corrupt, so this workspace cannot
+  say what it is connected to. The error names the file; show them that path and
+  offer to rebuild it by connecting their projects again. Read the path before you
+  paraphrase — the hunt means it may be a parent directory's file, or the home
+  one, and telling someone their current directory is broken sends them looking in
+  the wrong place. Do not hand-edit it, and do not delete it without asking.
 - **Anything else** — report the error text verbatim and stop.
 
 Recovering the answer another way is welcome as long as you still report the
