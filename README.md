@@ -11,6 +11,13 @@ hand-written CLAUDE.md**. Installing the plugin does two things:
    tools, not `Read`/`Grep`/`cat`). This is the deterministic, app-less
    replacement for the CLAUDE.md bootstrap mandate.
 
+The protocol reaches a session by two routes, not one. A workspace that already
+has a `.catwrangler` gets it from the hook. The *first* session in a workspace
+has no `.catwrangler` when it starts, so the hook has nothing to bootstrap and the
+user connects by hand — which is why `/catwrangler:connect` carries the same
+rules. Both routes read them from `lib/protocol.mjs`; the skill's copy is
+substituted in at build time rather than retyped, so the two cannot drift.
+
 ## Layout
 
 The repo root is the plugin root **for both hosts** — one tree, two manifests.
@@ -24,6 +31,7 @@ plugins/                                 ← repo root (github.com/CatWranglerAI
 │   ├── registry.mjs                     ← .catwrangler read/write, pure functions
 │   ├── manage-cli.mjs                   ← argv → JSON stdout, exit codes
 │   ├── bootstrap.mjs                    ← what SessionStart tells the model
+│   ├── protocol.mjs                     ← the session rules BOTH paths deliver
 │   └── hook.mjs                         ← SessionStart stdin/stdout contract
 ├── src/skill-connect.md                 ← the ONE source for both SKILL.md files
 ├── tools/build-skills.mjs               ← renders src/ → each host's SKILL.md

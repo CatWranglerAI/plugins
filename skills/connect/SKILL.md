@@ -65,7 +65,9 @@ same-named projects as two entries instead of one overwriting the other. The
 response echoes `ambiguous: true` when the registry ends up holding more than one
 project with that slug; when it does, show the org next to each.
 The script is idempotent (updates in place if already registered). Report the
-result.
+result — and when this is the first project registered in the workspace, also
+tell the user setup is done (see "Say it is set up"); registering is what arms
+the automatic connection, so `add` earns that message as much as `connect` does.
 It fills the file's `server`/`mcp_url` from the endpoint the plugin already
 bundles, so do **not** pass `--server`/`--mcp-url` unless the user names a
 different server — those flags are an override, and a file created without them
@@ -86,12 +88,12 @@ persists:
    the project's `id` as init_session's `project_id` parameter when you have one
    (from the `.catwrangler` entry or `list_projects`) — that pins the exact project rather
    than relying on a slug the server would have to disambiguate. Fall back to the
-   slug only when no id is recorded. Then follow the protocol it returns — remember
-   the returned `agent_id` and thread it as `_agent_id` on every later call, keep a
-   separate agent_id per instance, and use the server's MCP tools (no local project
-   source), exactly as at session start. Connecting does not require the project to
-   be registered first.
-2. Once `init_session` succeeds, register the project in `.catwrangler` with the
+   slug only when no id is recorded. Connecting does not require the project to be
+   registered first.
+2. **Adopt the session protocol below** for the rest of this session. Do not skip
+   this because `init_session` already returned: the two are different halves of
+   the same setup, and reading the protocol is what makes the connection usable.
+3. Once `init_session` succeeds, register the project in `.catwrangler` with the
    same idempotent `add` the `add` verb uses, so the next session starts with it
    already registered and the session-start hook connects to it automatically —
    otherwise the first connect vanishes and the following session is surprised to
@@ -105,6 +107,33 @@ persists:
    and `--org` keeps two orgs' same-named projects distinct. Skip this step only if
    the user explicitly asked for a one-off connection without registering it; `add`
    is idempotent, so re-registering an already-registered project just refreshes it.
+4. **Tell the user setup is done and permanent** — see "Say it is set up" below.
+   This is part of the verb, not a nicety: without it they will assume the command
+   is a per-session ritual.
+
+## The session protocol
+
+At the start of a session in an already-registered workspace, these rules arrive
+automatically and you never see this section. Connecting by hand is the case
+where they do not — the workspace had nothing registered when the session began,
+so no bootstrap ran. **That is now — adopt them here, and hold to them for the
+rest of the session:**
+
+- init_session returns an `agent_id`. Remember it, and include it as `_agent_id: "<agent_id>"` in the body of EVERY subsequent call to this server — calls without it are rejected. Each CatWrangler instance you connect to issues its OWN agent_id; use the matching one per server and never reuse one instance's agent_id on another. After an AUTH_REQUIRED error or a reconnect, call init_session with `reclaim_agent_id: "<agent_id>"` to recover without losing your branch or work — do not re-init without it.
+- You have NO local source code or decision files for the project — it all lives on the CatWrangler server behind its SCCS gates. Use the server's MCP tools (get_task_briefing, grep_code, read_code, list_files, search_decisions) for ALL code and decision access; do NOT use local file tools (Read, Grep, Glob, cat) to explore the project. The only local files are CLAUDE.md and Docs/.
+- Whatever init_session returns is the authority on how to work this project — read it and follow it, even where it goes beyond these lines.
+- The workspace's `.catwrangler` file is a convenience cache, not the source of truth. If the user references a project not registered there, call init_session to get the authoritative, current list from the server.
+
+## Say it is set up
+
+Once a `connect` or `add` succeeds, the workspace is configured for good, and
+saying so is part of the job — not a nicety appended to it:
+
+Connecting is automatic and persistent: every future session started in this directory connects on its own at startup, with no /catwrangler:connect and no other setup step. Do not let the user believe otherwise — if they ask whether they need to connect, or reach for the command out of habit, tell them plainly that they are already correctly configured. The command is for adding, removing, or switching projects; re-running it is harmless, just unnecessary.
+
+Put it in your own words, briefly, as part of reporting the result. Nothing in an
+ordinary session will confirm it later — the hook is silent when it works — so
+the moment they just ran the command is the only good moment to say it.
 
 ## Listing available projects
 

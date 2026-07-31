@@ -70,7 +70,9 @@ same-named projects as two entries instead of one overwriting the other. The
 response echoes `ambiguous: true` when the registry ends up holding more than one
 project with that slug; when it does, show the org next to each.
 The script is idempotent (updates in place if already registered). Report the
-result.
+result — and when this is the first project registered in the workspace, also
+tell the user setup is done (see "Say it is set up"); registering is what arms
+the automatic connection, so `add` earns that message as much as `connect` does.
 It fills the file's `server`/`mcp_url` from the endpoint the plugin already
 bundles, so do **not** pass `--server`/`--mcp-url` unless the user names a
 different server — those flags are an override, and a file created without them
@@ -91,12 +93,12 @@ persists:
    the project's `id` as init_session's `project_id` parameter when you have one
    (from the `.catwrangler` entry or `list_projects`) — that pins the exact project rather
    than relying on a slug the server would have to disambiguate. Fall back to the
-   slug only when no id is recorded. Then follow the protocol it returns — remember
-   the returned `agent_id` and thread it as `_agent_id` on every later call, keep a
-   separate agent_id per instance, and use the server's MCP tools (no local project
-   source), exactly as at session start. Connecting does not require the project to
-   be registered first.
-2. Once `init_session` succeeds, register the project in `.catwrangler` with the
+   slug only when no id is recorded. Connecting does not require the project to be
+   registered first.
+2. **Adopt the session protocol below** for the rest of this session. Do not skip
+   this because `init_session` already returned: the two are different halves of
+   the same setup, and reading the protocol is what makes the connection usable.
+3. Once `init_session` succeeds, register the project in `.catwrangler` with the
    same idempotent `add` the `add` verb uses, so the next session starts with it
    already registered and the session-start hook connects to it automatically —
    otherwise the first connect vanishes and the following session is surprised to
@@ -110,6 +112,30 @@ persists:
    and `--org` keeps two orgs' same-named projects distinct. Skip this step only if
    the user explicitly asked for a one-off connection without registering it; `add`
    is idempotent, so re-registering an already-registered project just refreshes it.
+4. **Tell the user setup is done and permanent** — see "Say it is set up" below.
+   This is part of the verb, not a nicety: without it they will assume the command
+   is a per-session ritual.
+
+## The session protocol
+
+At the start of a session in an already-registered workspace, these rules arrive
+automatically and you never see this section. Connecting by hand is the case
+where they do not — the workspace had nothing registered when the session began,
+so no bootstrap ran. **That is now — adopt them here, and hold to them for the
+rest of the session:**
+
+{{PROTOCOL}}
+
+## Say it is set up
+
+Once a `connect` or `add` succeeds, the workspace is configured for good, and
+saying so is part of the job — not a nicety appended to it:
+
+{{NO_RECONNECT}}
+
+Put it in your own words, briefly, as part of reporting the result. Nothing in an
+ordinary session will confirm it later — the hook is silent when it works — so
+the moment they just ran the command is the only good moment to say it.
 
 ## Listing available projects
 

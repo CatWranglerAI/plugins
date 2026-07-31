@@ -16,6 +16,11 @@
  *   3. The registry listing. Claude Code can inject a command's output into the
  *      prompt with !`…`; Codex has no equivalent, so its copy runs the command.
  *
+ * Not everything substituted here is host-conditional. {{PROTOCOL}} and
+ * {{NO_RECONNECT}} resolve to the same text for every host — they are pulled from
+ * lib/protocol.mjs so the skill and the SessionStart hook state the session's
+ * rules in one voice instead of two paraphrases that drift apart.
+ *
  * Symlinking one file into both trees is NOT an option: git stores a symlink as
  * its path string, and a Windows checkout without core.symlinks (the default
  * absent Developer Mode) materializes it as a regular file *containing that
@@ -33,9 +38,24 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SESSION_PROTOCOL, NO_RECONNECT_NEEDED } from '../lib/protocol.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = join(ROOT, 'src', 'skill-connect.md');
+
+/**
+ * The session protocol as a Markdown bullet list. Same text the SessionStart
+ * hook injects, differing only in the rendering the surrounding document wants —
+ * which is exactly why it is substituted here instead of retyped in the skill.
+ * See lib/protocol.mjs for why both paths have to carry it.
+ */
+const PROTOCOL_BULLETS = SESSION_PROTOCOL.map((line) => `- ${line}`).join('\n');
+
+/** Host-neutral tokens — the shared text every host's skill gets verbatim. */
+const SHARED_TOKENS = {
+  PROTOCOL: PROTOCOL_BULLETS,
+  NO_RECONNECT: NO_RECONNECT_NEEDED,
+};
 
 const HOSTS = {
   claude: {
@@ -97,7 +117,7 @@ const src = readFileSync(SOURCE, 'utf8');
 let stale = 0;
 
 for (const [host, { out, tokens }] of Object.entries(HOSTS)) {
-  const rendered = withBanner(render(src, host, tokens), host);
+  const rendered = withBanner(render(src, host, { ...SHARED_TOKENS, ...tokens }), host);
   if (check) {
     const current = existsSync(out) ? readFileSync(out, 'utf8') : null;
     if (current !== rendered) {
