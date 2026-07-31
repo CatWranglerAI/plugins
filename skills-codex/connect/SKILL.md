@@ -18,19 +18,29 @@ connect to a project that was never registered, and registering one grants no
 access it did not already have. Say **registered**, never "listed" — every
 project `list` prints is listed, so that word cannot distinguish a state.
 
-Arguments: `$verb` is `list` | `add` | `remove` | `connect`, and `$slug` is the
-project slug. Either may be empty — an empty `$verb` means run the interactive
-hub, and a verb that needs a slug without one means ask which project.
+This invocation's verb: whatever the user asked for — one of `list`, `add`, `remove`,
+`connect`, or empty. Its slug: the project the user named — empty when no project was
+named. An empty verb means run the interactive hub; a verb that needs a slug and
+has none means ask which project.
 
-To read the projects registered in this workspace, run:
+**First, read the workspace registry.** Every verb below builds on what it
+returns, so run it before anything else:
+
 ```
 node scripts/manage.mjs list
 ```
 
-## Dispatch on `$verb`
+It prints one JSON object and needs no network. If it fails for any reason —
+`node: command not found`, a non-zero exit, unparseable output — **stop and tell
+the user**, per "When manage.mjs fails" below. Do not carry on as though the
+workspace were empty: an unreadable registry and an empty one are different
+answers, and only `"exists": false` means the latter.
 
-In the verb sections below, `<slug>` is `$slug` when the user supplied one, and
-otherwise the project chosen in the hub or named in conversation.
+## Dispatch on the verb
+
+In the verb sections below, `<slug>` means the slug for this invocation —
+the one the user named, and otherwise the project chosen in
+the hub or named in conversation.
 
 Both `list` and the no-verb hub render the same thing — **the merged view**:
 
@@ -180,9 +190,26 @@ different answers, and only the tool's own empty `projects: []` means the latter
   server access.
 - Never guess a connection target. If several registered/available projects
   plausibly match the user's task, ask which.
-- `manage.mjs` needs Node. If any invocation fails with `node: command not found`
-, do not retry or hand-edit
-  `.catwrangler`: tell the user the CatWrangler plugin requires Node 18+ on `PATH`
-  (https://nodejs.org, `brew install node`, or `nvm install --lts`) and that the
-  same gap disables the session-start hook. `connect` still works without it — it
-  only calls `init_session`.
+
+## When manage.mjs fails
+
+A failed `manage.mjs` call is **never** something to swallow, work around, or
+retry. The user ran this command and is waiting on an answer; silence reads to
+them as the plugin being broken with no explanation. Say what failed and what
+they can do, every time:
+
+- **`node: command not found`** — the plugin requires Node 18+ on `PATH`. Point
+  them at https://nodejs.org, `brew install node`, or `nvm install --lts`, and
+  tell them the same gap disables the session-start hook, so this is worth fixing
+  once rather than working around. `connect` still works meanwhile: it only calls
+  `init_session`, which needs no Node.
+- **`.catwrangler is not valid JSON`** — the registry is corrupt. Show them the
+  path from the error and offer to regenerate it by re-adding their projects.
+  Do not hand-edit it and do not delete it without asking.
+- **Anything else** — report the error text verbatim and stop. Do not
+  hand-edit `.catwrangler` to route around a script that is not working.
+
+In every case the other half of the skill still works: `list_projects` and
+`init_session` are MCP calls with no Node involved, so you can usually still show
+the user what projects exist and connect them, even when the registry is
+unreachable. Do that, and be explicit that the registration half is what failed.

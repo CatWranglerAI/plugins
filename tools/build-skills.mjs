@@ -13,8 +13,13 @@
  *   2. How the skill names its own bundled script. Claude Code substitutes
  *      ${CLAUDE_SKILL_DIR}; Codex has no such variable and documents relative
  *      paths from the skill directory.
- *   3. The registry listing. Claude Code can inject a command's output into the
- *      prompt with !`…`; Codex has no equivalent, so its copy runs the command.
+ *   3. Argument references. Claude Code substitutes $verb/$slug into the body;
+ *      Codex has no equivalent, so its copy describes them in prose.
+ *
+ * There used to be a fourth: Claude Code can inject a command's OUTPUT into the
+ * prompt with !`…`, which the Claude copy used for the registry listing while
+ * Codex ran the command as a normal tool call. That is gone deliberately —
+ * see "Never inject !`…`" below. Both hosts now run the command.
  *
  * Not everything substituted here is host-conditional. {{PROTOCOL}} and
  * {{NO_RECONNECT}} resolve to the same text for every host — they are pulled from
@@ -76,6 +81,45 @@ const HOSTS = {
   },
 };
 
+/**
+ * Never inject !`…` — it turns any command failure into a silent, total loss.
+ *
+ * Claude Code expands !`cmd` while BUILDING the prompt, and that expander treats
+ * a failing command as fatal to the whole document, not to the one substitution.
+ * Traced in the 2.1.220 binary: the Bash tool throws on any non-zero exit, the
+ * expander's catch rethrows it, and the outer handler is
+ *
+ *   catch(a){ return w(`Failed to create command from ${t.filePath}: ${a}`,
+ *                      {level:"error"}), null }
+ *
+ * — a debug-log write and `null`. The skill body is discarded before the model
+ * ever sees it. The user gets NOTHING: no output, no error, no acknowledgement
+ * that they ran a command. Nothing in the transcript says the plugin was
+ * involved at all.
+ *
+ * Two live triggers, both ordinary: `node` absent from PATH (exit 127), and a
+ * corrupt `.catwrangler`, which makes `manage.mjs list` exit 1. The second is
+ * the crueller one — the command you would reach for to repair the registry is
+ * exactly the command the broken registry deletes.
+ *
+ * The instruction the skill carries for this case ("if node is not found, tell
+ * the user Node 18+ is required") lived INSIDE the discarded body, so it could
+ * never fire on the failure it was written for. Better wording could not have
+ * saved it; nothing written in the body can survive the body being dropped.
+ *
+ * So the registry read is a normal tool call on both hosts. It costs one
+ * round-trip, and buys a failure the model can actually see and report.
+ */
+function assertNoPromptInjection(rendered, host) {
+  const found = rendered.match(/!`[^`]+`/);
+  if (found) {
+    throw new Error(
+      `${host} skill contains a !\`…\` prompt injection (${found[0]}). ` +
+        'A non-zero exit there discards the entire skill silently — run the command as a tool call instead.'
+    );
+  }
+}
+
 const BANNER = (host) =>
   `<!-- GENERATED from src/skill-connect.md for ${host} — edit the source, then run: node tools/build-skills.mjs -->`;
 
@@ -118,6 +162,7 @@ let stale = 0;
 
 for (const [host, { out, tokens }] of Object.entries(HOSTS)) {
   const rendered = withBanner(render(src, host, { ...SHARED_TOKENS, ...tokens }), host);
+  assertNoPromptInjection(rendered, host);
   if (check) {
     const current = existsSync(out) ? readFileSync(out, 'utf8') : null;
     if (current !== rendered) {
