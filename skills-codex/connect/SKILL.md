@@ -227,10 +227,9 @@ different answers, and only the tool's own empty `projects: []` means the latter
 
 ## When manage.mjs fails
 
-A failed `manage.mjs` call is **never** something to swallow, work around, or
-retry. The user ran this command and is waiting on an answer; silence reads to
-them as the plugin being broken with no explanation. Say what failed and what
-they can do, every time:
+A failed `manage.mjs` call is **never** something to swallow. The user ran this
+command and is waiting on an answer; silence reads to them as the plugin being
+broken with no explanation. Say what failed and what they can do, every time:
 
 - **`node: command not found`** — the plugin requires Node 18+ on `PATH`. Point
   them at https://nodejs.org, `brew install node`, or `nvm install --lts`, and
@@ -242,8 +241,14 @@ they can do, every time:
   cannot say what it is connected to. Show them the path from the error and offer
   to rebuild it by connecting their projects again. Do not hand-edit it, and do
   not delete it without asking.
-- **Anything else** — report the error text verbatim and stop. Do not
-  hand-edit `.catwrangler` to route around a script that is not working.
+- **Anything else** — report the error text verbatim and stop.
+
+Recovering the answer another way is welcome as long as you still report the
+problem — if you can find a working `node` at an absolute path, use it and say
+what you did. What is forbidden is the silent workaround, and one specific loud
+one: never hand-edit `.catwrangler`. It is the file `manage.mjs` exists to own,
+and writing it by hand while the script is failing is how a workspace ends up
+with a registry no version of the plugin agrees with.
 
 In every case the other half of the skill still works: `list_projects` and
 `init_session` are MCP calls with no Node involved, so you can usually still show

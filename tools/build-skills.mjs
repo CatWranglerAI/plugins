@@ -93,9 +93,14 @@ const HOSTS = {
  *                      {level:"error"}), null }
  *
  * — a debug-log write and `null`. The skill body is discarded before the model
- * ever sees it. The user gets NOTHING: no output, no error, no acknowledgement
- * that they ran a command. Nothing in the transcript says the plugin was
- * involved at all.
+ * ever sees it.
+ *
+ * How loudly that fails depends on how the skill was invoked, and the common
+ * route is the quiet one. Typed as `/catwrangler:connect`, it hits the handler
+ * above: `null`, so the user gets NOTHING — no output, no error, no sign the
+ * plugin was involved. Invoked as a tool, the error does surface ("Shell command
+ * failed for pattern …"). Both lose the body; only one says so. Verified both
+ * ways against a live session with `node` off PATH.
  *
  * Two live triggers, both ordinary: `node` absent from PATH (exit 127), and a
  * corrupt `.catwrangler`, which makes `manage.mjs list` exit 1. The second is
