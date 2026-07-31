@@ -2,22 +2,31 @@
   "version": 1,
   "server": "https://example.catwrangler.ai",
   "mcp_url": "https://example.catwrangler.ai/mcp",
-  "org": "acme",
+  "org": "pixel-arcade",
   "generated_by": "connect-flow",
   "projects": [
     {
-      "id": "p-105562",
-      "slug": "storefront",
-      "org_slug": "acme",
-      "name": "Storefront",
-      "description": "Customer-facing web storefront."
+      "id": "p-841207",
+      "slug": "arcade",
+      "org_slug": "pixel-arcade",
+      "name": "Arcade Platform",
+      "description": "Cross-game plane: accounts, coins, leaderboards.",
+      "use_when": "anything shared across games — accounts, coins, leaderboards. I call this the platform."
     },
     {
-      "id": "p-338947",
-      "slug": "billing-api",
-      "org_slug": "acme",
-      "name": "Billing API",
-      "description": "Subscriptions and invoicing."
+      "id": "p-773915",
+      "slug": "neon-racer",
+      "org_slug": "pixel-arcade",
+      "name": "Neon Racer",
+      "use_when": "the racing game itself: tracks, handling, its own UI. I call this the racer."
+    },
+    {
+      "id": "p-620384",
+      "slug": "dungeon-cats",
+      "org_slug": "pixel-arcade",
+      "name": "Dungeon Cats",
+      "description": "Roguelike; the other game.",
+      "use_when": "the cat dungeon game — levels, loot, enemies."
     }
   ]
 }

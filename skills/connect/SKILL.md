@@ -69,7 +69,9 @@ Both `list` and the no-verb hub render the same thing — **the merged view**:
 2. Fetch **available** projects via `list_projects` (see "Listing available") and
    merge, marking each `● connected` or `+ available`. Match on slug **and**
    `org_slug`, and show the org whenever a slug appears twice.
-3. Annotate any project this session has an active `init_session` for — see
+3. Show each connected project's `use_when` when it has one — that is the line
+   the user reads to check routing is right. See "Telling projects apart".
+4. Annotate any project this session has an active `init_session` for — see
    "Active session". Secondary detail, after the state, never instead of it.
 
 The merged view needs **no** existing connection — render what you can from
@@ -107,7 +109,7 @@ There is no separate "connect" step; this verb is the whole of it, in three part
 
 3. **Record it**, so this is permanent and no future session has to repeat it:
    ```
-   node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>"
+   node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>" --use-when "<routing note>"
    ```
    Carry `--id`, `--org`, `--name`, and `--desc` whenever `list_projects` gave you
    them. `--id` is what lets the *next* session open the project unambiguously, and
@@ -122,6 +124,10 @@ There is no separate "connect" step; this verb is the whole of it, in three part
    different server — those flags are an override, and a file written without them
    is still complete.
 
+If this `add` leaves the workspace with **two or more** projects, also settle how
+sessions tell them apart — see "Telling projects apart". Do it now, while the user
+is here and thinking about it.
+
 Then report the result, and **tell the user it is permanent** — see "Say it is set
 up". That is part of the verb, not a flourish on the end of it: skipping it is
 what leaves people believing they have to do this again tomorrow.
@@ -135,6 +141,51 @@ node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" remove --slug "<slug>"
 ```
 If that slug is connected under more than one org the script refuses and names the
 orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
+
+## Telling projects apart
+
+One connected project needs no disambiguation. Two or more do, every session, and
+the session-start bootstrap is where that choice actually gets made — so what is
+recorded here is what a future session has to work with.
+
+Each project carries an optional **`use_when`**: one line saying when work belongs
+to it, written in the user's own words. It is separate from `description` on
+purpose. `description` comes from the server and says *what the project is*;
+`use_when` is local and says *when to route here*, which is a different statement
+and often not derivable from the first. It is also the only field an idempotent
+`add` will not overwrite, so it is safe to keep a hand-written note in.
+
+Two things belong in it, and the second is usually the more valuable:
+
+- **What the project owns** — "anything shared across games: accounts, coins,
+  leaderboards".
+- **What the user calls it** — "they call this one the racer". The server cannot
+  know this, and it is what makes "work on the racer" resolve without a question.
+
+**When the workspace becomes ambiguous** — the `add` that takes it from one project
+to two — propose a `use_when` for **both**, not just the new one. Adding the second
+project is what made the first one ambiguous; leaving it bare only half-solves the
+problem. Draft them from what you know (the descriptions, the org, what the user
+just said) and ask the user to confirm or correct rather than making them compose
+from nothing. If they would rather not bother, drop it — a `use_when` is worth
+having, not worth insisting on. Later `add`s into an already-ambiguous workspace
+need one only for the project being added.
+
+**Keep it to one line.** It enters the context of every session started here.
+Anything longer is a second CLAUDE.md that nobody is curating.
+
+**Treat corrections as the real source.** When the user redirects you — "no, that's
+the racer", "leaderboard work goes to the platform" — that sentence is a better
+`use_when` than anything you would have drafted. Record it:
+```
+node "${CLAUDE_SKILL_DIR}/scripts/manage.mjs" add --slug "<slug>" --use-when "<the corrected rule>"
+```
+`add` updates in place, and passing only `--slug` and `--use-when` leaves every
+other field alone. This is the whole point of the field: a correction that is not
+recorded is one the user has to repeat next session, and they will notice.
+
+None of this replaces asking. When two projects still plausibly fit, ask which —
+`use_when` exists to make that rare, not to license a guess.
 
 ## Active session
 

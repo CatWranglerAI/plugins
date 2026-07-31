@@ -144,15 +144,16 @@ from the server's per-user reachable-project list). JSON:
   "version": 1,
   "server": "https://example.catwrangler.ai",
   "mcp_url": "https://example.catwrangler.ai/mcp",
-  "org": "acme",
+  "org": "pixel-arcade",
   "projects": [
-    { "id": "p-105562", "slug": "storefront", "org_slug": "acme",
-      "name": "Storefront", "description": "…what it is/does…" }
+    { "id": "p-841207", "slug": "arcade", "org_slug": "pixel-arcade",
+      "name": "Arcade Platform", "description": "…what it is/does…",
+      "use_when": "…when work belongs here, in your words…" }
   ]
 }
 ```
 
-Each project's `id` (shaped like `p-105562`) is the server-assigned key the
+Each project's `id` (shaped like `p-841207`) is the server-assigned key the
 `/connect` flow passes to `init_session` as its `project_id` parameter to pin the
 exact project; `slug`, `org_slug`, `name`, and `description` come from
 `list_projects`. Entries written before ids were captured have none and connect by
@@ -257,6 +258,29 @@ rather than letting you reach another deployment.
 Because project slugs are unique only within an organization, `.catwrangler`
 entries carry `org_slug`, and `add`/`remove` take `--org` to disambiguate two
 orgs' same-named projects.
+
+### Telling two projects apart
+
+Connect a second project and sessions now have a choice to make at startup. Each
+entry can carry a **`use_when`** — one line, in your words, saying when work
+belongs to that project:
+
+```json
+{ "slug": "arcade", "name": "Arcade Platform",
+  "description": "Cross-game plane: accounts, coins, leaderboards.",
+  "use_when": "anything shared across games — accounts, coins, leaderboards. I call this the platform." }
+```
+
+It is separate from `description` deliberately. `description` comes from the
+server and says what the project *is*; `use_when` says when to *route* there,
+which is often not the same thing — and it is the one field a refresh will never
+overwrite, so a note you write by hand stays written.
+
+`/catwrangler:connect` offers to set these the moment a second project makes the
+workspace ambiguous, and updates them when you correct a wrong guess — so telling
+it "no, that's the racer" fixes the next session too, rather than only this one.
+Projects without a `use_when` still work; sessions just fall back to the
+description, and ask you when it is genuinely unclear.
 
 ## Scopes
 

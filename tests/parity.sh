@@ -48,12 +48,17 @@ adapters() {
 # Workspace fixtures: one per registry shape the bootstrap branches on.
 make_fixtures() {
   local w=$1
-  mkdir -p "$w/fix/none" "$w/fix/one" "$w/fix/many" "$w/fix/zero" "$w/fix/bad"
+  mkdir -p "$w/fix/none" "$w/fix/one" "$w/fix/many" "$w/fix/zero" "$w/fix/bad" "$w/fix/routed"
   cat > "$w/fix/one/.catwrangler" <<'EOF'
 {"version":1,"server":"https://mcp.catwrangler.ai","mcp_url":"https://mcp.catwrangler.ai/mcp","projects":[{"slug":"arcade","id":"p-841207","org_slug":"pixel","name":"Arcade Platform","description":"Cross-game plane."}]}
 EOF
   cat > "$w/fix/many/.catwrangler" <<'EOF'
 {"version":1,"server":"https://mcp.catwrangler.ai","projects":[{"slug":"arcade","id":"p-841207","name":"Arcade"},{"slug":"neon","id":"p-773915"},{"slug":"dungeon","description":"cats"},{"slug":"d4"},{"slug":"d5"}]}
+EOF
+  # Two projects with local routing notes, one without: the disambiguation path,
+  # including how it degrades for an entry that never got a use_when.
+  cat > "$w/fix/routed/.catwrangler" <<'EOF'
+{"version":1,"server":"https://mcp.catwrangler.ai","projects":[{"slug":"arcade","id":"p-841207","name":"Arcade","description":"Cross-game plane.","use_when":"coins, accounts, leaderboards — anything shared across games"},{"slug":"neon","id":"p-773915","use_when":"the racing game itself; they call it \"the racer\""},{"slug":"plain","id":"p-620384"}]}
 EOF
   echo '{"version":1,"projects":[]}' > "$w/fix/zero/.catwrangler"
   echo '{not json'                   > "$w/fix/bad/.catwrangler"
@@ -68,10 +73,14 @@ transcript() {
   rm -rf "$d"; mkdir -p "$d"
 
   # Registry CRUD: creation, org disambiguation, in-place refresh, the
-  # ambiguous-remove refusal, and every error path.
+  # ambiguous-remove refusal, and every error path. The two solo adds after the
+  # first are the use_when survival check — set it, then refresh the entry
+  # WITHOUT the flag; the final registry dump proves it was not overwritten.
   local specs=(
     "list --dir $d"
     "add --slug solo --dir $d"
+    "add --slug solo --use-when shared-plumbing --dir $d"
+    "add --slug solo --name SoloV2 --dir $d"
     "add --slug arcade --id p-841207 --org pixel --name Arcade --desc Cross-game. --dir $d"
     "add --slug arcade --org neon --dir $d"
     "add --slug arcade --org pixel --name ArcadeV2 --dir $d"
@@ -92,7 +101,7 @@ transcript() {
   cat "$d/.catwrangler"
 
   # Bootstrap: every registry shape against every session source.
-  for f in none one many zero bad; do
+  for f in none one many routed zero bad; do
     for src in startup resume clear compact fork; do
       echo "--- hook $f $src"
       echo "{\"cwd\":\"$w/fix/$f\",\"source\":\"$src\",\"hook_event_name\":\"SessionStart\"}" | node "$hook"
