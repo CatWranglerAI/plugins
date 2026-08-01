@@ -8,8 +8,13 @@
  *
  * The rules below are transcribed from the `session-start.command.output` JSON
  * Schema embedded in the Codex binary (0.146.0). Both objects are
- * `additionalProperties: false`, which is why the Claude Code adapter's
- * `initialUserMessage` cannot be emitted to Codex.
+ * `additionalProperties: false`, which is why Claude Code's `initialUserMessage`
+ * could never be emitted to Codex.
+ *
+ * That strictness now does double duty. The plugin emits no opening turn on any
+ * host, and the payload is built host-neutrally in lib/, so anything that
+ * reintroduces the field reaches this check through the Codex adapter and fails
+ * here by name — even though the field's only real host is Claude Code.
  *
  * Run: node tests/codex-wire.mjs        (invoked by tests/parity.sh)
  */

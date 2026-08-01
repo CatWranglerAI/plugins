@@ -8,9 +8,10 @@
 # lib/ that shifts behavior shows up as a diff instead of shipping.
 #
 # It is also the parity check between hosts: run it for each, and the outputs
-# must match everywhere the hosts are supposed to agree. Where they legitimately
-# differ — Codex cannot create an opening turn, so it emits no
-# initialUserMessage — the difference is visible in the diff rather than assumed.
+# must match everywhere the hosts are supposed to agree — which, since the
+# plugin dropped its injected opening turn, is everywhere. The two goldens are
+# byte-identical in their hook sections; `diff tests/golden/*.txt` is the check,
+# and any host-specific behavior that creeps back in shows up there.
 #
 #   tests/parity.sh                 # check every host that has adapters
 #   tests/parity.sh claude          # check one host

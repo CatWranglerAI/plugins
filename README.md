@@ -73,20 +73,23 @@ stores a symlink as its path string, and a Windows checkout without
 `../../skills/…` and no error anywhere. Both copies are rendered from
 `src/skill-connect.md`; `tests/parity.sh` fails if either is stale.
 
-**What differs between the hosts at runtime.** Exactly one thing, and it is
-verified rather than assumed: Codex documents that SessionStart injects developer
-context only and cannot create user turns, so its adapter drops
-`initialUserMessage`. `tests/parity.sh` records a transcript per host, and every
-line that differs between them is that dropped opening turn — nothing else.
-Practically, an interactive Codex session gets the identical bootstrap; a
-headless one gets the instruction without a forced first turn.
+**What differs between the hosts at runtime.** Nothing, and that is verified
+rather than assumed: `tests/parity.sh` records a transcript per host, and the
+hook output in them is identical. The plugin injects context and never starts a
+turn, on any host — a session gets the bootstrap instruction attached to whatever
+the user actually opened it to do, and connects as part of doing that. Claude
+Code does offer `initialUserMessage`, which manufactures an opening turn; the
+plugin deliberately does not use it (see `lib/bootstrap.mjs`), because it fired
+on every startup, resume, and fork and opened sessions with an unrequested
+catch-up briefing.
 
 **What the Codex side depends on.** Four things, each load-bearing:
 
 - `.codex-plugin/plugin.json` declares `"hooks": "./hooks.json"`. Undeclared,
   Codex reads `hooks/hooks.json` — Claude Code's.
-- Codex validates hook stdout strictly and rejects unknown fields, which is the
-  mechanism behind `initialUserMessage` going to Claude Code only.
+- Codex validates hook stdout strictly and rejects unknown fields — the reason
+  `initialUserMessage` could only ever have gone to Claude Code, and now the
+  guard that catches it if it comes back.
 - Empty stdout is a parse error there, so a hook with nothing to say emits `{}`.
 - Codex sets `PLUGIN_ROOT` and `CLAUDE_PLUGIN_ROOT`, so `hooks.json` reads
   `${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}`.
