@@ -84,6 +84,9 @@ Both `list` and the no-verb hub render the same thing — **the merged view**:
    the user reads to check routing is right. See "Telling projects apart".
 4. Annotate any project this session has an active `init_session` for — see
    "Active session". Secondary detail, after the state, never instead of it.
+5. Show each project's `web_url` when it has one — it is the link the user came
+   for on the occasions they want the UI rather than an agent. See "The project's
+   web URL".
 
 The merged view needs **no** existing connection — render what you can from
 `.catwrangler` even with no server access, saying why the available half is
@@ -119,12 +122,14 @@ There is no separate "connect" step; this verb is the whole of it, in three part
 
 3. **Record it**, so this is permanent and no future session has to repeat it:
    ```
-   node scripts/manage.mjs add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>" --use-when "<routing note>"
+   node scripts/manage.mjs add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>" --web-url "<web_url>" --use-when "<routing note>"
    ```
-   Carry `--id`, `--org`, `--name`, and `--desc` whenever `list_projects` gave you
-   them. `--id` is what lets the *next* session open the project unambiguously, and
-   `--org` is what keeps two orgs' same-named projects as two entries instead of one
-   overwriting the other. The response echoes `ambiguous: true` when the file ends
+   Carry `--id`, `--org`, `--name`, `--desc`, and `--web-url` whenever
+   `list_projects` gave you them. `--id` is what lets the *next* session open the
+   project unambiguously, `--org` is what keeps two orgs' same-named projects as two
+   entries instead of one overwriting the other, and `--web-url` is what puts that
+   project's UI and HTTP API in front of every future session — see "The project's
+   web URL". The response echoes `ambiguous: true` when the file ends
    up holding more than one project with that slug; when it does, show the org next
    to each. The script is idempotent — running it for an already-connected project
    just refreshes the details.
@@ -217,6 +222,32 @@ recorded is one the user has to repeat next session, and they will notice.
 None of this replaces asking. When two projects still plausibly fit, ask which —
 `use_when` exists to make that rare, not to license a guess.
 
+## The project's web URL
+
+Each project has a **`web_url`**: the origin of its CatWrangler UI and HTTP API.
+`list_projects` reports it, `add` records it, and the session-start bootstrap puts
+it in front of every future session started here. Carry it on every `add` you
+have one for — a project connected without it is connected fine, just with the
+one thing a session cannot work out for itself missing.
+
+It cannot be derived locally, and this is the whole reason it is stored. The
+file's top-level `server`/`mcp_url` name the **MCP** endpoint, which behind the
+shared lane is one URL answering for every project; the web surface is one host
+per project. So never compose a `web_url` from a slug, a host pattern, or the
+MCP URL — take the server's value or leave the field out. A plausible-looking
+host that does not exist is worse than none, because it is indistinguishable from
+a real one until someone follows it.
+
+**What it is for, and what it is not.** MCP remains how work gets done: source,
+decisions, and history come through the server's tools, which are the path
+through this project's gates. The URL is for the other occasions — handing the
+user a link when they want to look at something in a browser, or reaching an HTTP
+endpoint when a task genuinely needs one and no MCP tool covers it. It is not a
+second way into the project's contents and never a reason to skip `init_session`.
+
+`add` refreshes it from the server like `--desc`, and unlike `use_when` — the
+server owns where the project answers, so a stale local copy is simply wrong.
+
 ## Active session
 
 A connected project may or may not have been opened by *this* session — via the
@@ -225,6 +256,7 @@ project's row, after the state:
 
 ```
 ● connected   arcade (Arcade Platform)   · session active as "swift-otter"
+              https://pixelarcade-arcade-dev.catwrangler.ai
 + available   neon-racer (Neon Racer)
 ```
 
@@ -273,9 +305,11 @@ reach for it before connecting, not after. It returns:
   "projects": [
     { "id": "p-841207", "slug": "arcade", "name": "Arcade Platform",
       "org_slug": "pixel-arcade",
-      "description": "Cross-game plane: accounts, coins, leaderboards." },
+      "description": "Cross-game plane: accounts, coins, leaderboards.",
+      "web_url": "https://pixelarcade-arcade-dev.catwrangler.ai" },
     { "id": "p-773915", "slug": "neon-racer", "name": "Neon Racer",
-      "org_slug": "pixel-arcade" },
+      "org_slug": "pixel-arcade",
+      "web_url": "https://pixelarcade-neon-racer-dev.catwrangler.ai" },
     { "id": "p-620384", "slug": "dungeon-cats", "name": "Dungeon Cats",
       "org_slug": "pixel-arcade" } ] }
 ```
@@ -289,9 +323,13 @@ reach for it before connecting, not after. It returns:
 - `org_slug` is always present and **must be carried into `add`**: slugs are
   unique only within an org, so two orgs can both have an `arcade`. When the merged
   view shows a duplicated slug, render the org alongside it and ask which.
-- There is deliberately no host on an entry. One connector maps to one project
-  today, so the list tells the user what exists; it does not by itself let you
-  reach another deployment.
+- `web_url` is that project's CatWrangler UI and HTTP API origin — see "The
+  project's web URL". Optional: a server predating it omits it, and so does an
+  entry whose host the server cannot state.
+- There is deliberately no **MCP** host on an entry, and `web_url` is not one.
+  Every project answers MCP on the single URL this plugin already bundles, and the
+  `id` is what selects between them; the web origin is per-project, which is why it
+  is carried and the MCP host is not.
 
 If the tool is missing from this server, or returns `PROJECT_LIST_UNAVAILABLE`
 (503, the control plane is unreachable), say so plainly and carry on with the

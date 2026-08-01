@@ -143,12 +143,13 @@ from the server's per-user reachable-project list). JSON:
 ```json
 {
   "version": 1,
-  "server": "https://example.catwrangler.ai",
-  "mcp_url": "https://example.catwrangler.ai/mcp",
+  "server": "https://mcp.catwrangler.ai",
+  "mcp_url": "https://mcp.catwrangler.ai/mcp",
   "org": "pixel-arcade",
   "projects": [
     { "id": "p-841207", "slug": "arcade", "org_slug": "pixel-arcade",
       "name": "Arcade Platform", "description": "…what it is/does…",
+      "web_url": "https://pixelarcade-arcade-dev.catwrangler.ai",
       "use_when": "…when work belongs here, in your words…" }
   ]
 }
@@ -156,9 +157,14 @@ from the server's per-user reachable-project list). JSON:
 
 Each project's `id` (shaped like `p-841207`) is the server-assigned key the
 `/connect` flow passes to `init_session` as its `project_id` parameter to pin the
-exact project; `slug`, `org_slug`, `name`, and `description` come from
+exact project; `slug`, `org_slug`, `name`, `description`, and `web_url` come from
 `list_projects`. Entries written before ids were captured have none and connect by
 slug.
+
+Note the two URLs are not the same kind of thing. The top-level `mcp_url` is where
+agents connect, and one endpoint answers for every project you can reach — the
+`id` is what picks between them. Each project's `web_url` is its own CatWrangler
+UI and HTTP API, one host per project. See "The project's web address" below.
 
 ### Where it is looked for
 
@@ -274,9 +280,9 @@ does no network I/O.
 The available half of the listing comes from the server's `list_projects` tool,
 which needs no `init_session` — so you can see what exists before connecting
 anything. Entries
-carry `slug`, `name`, `org_slug`, and an optional `description`. They carry no
-host: one connector still maps to one project, so the list tells you what exists
-rather than letting you reach another deployment.
+carry `slug`, `name`, `org_slug`, an optional `description`, and an optional
+`web_url`. They carry no *MCP* host, because there is nothing to choose: every
+project answers on the one endpoint this plugin already bundles.
 
 Because project slugs are unique only within an organization, `.catwrangler`
 entries carry `org_slug`, and `add`/`remove` take `--org` to disambiguate two
@@ -304,6 +310,32 @@ workspace ambiguous, and updates them when you correct a wrong guess — so tell
 it "no, that's the racer" fixes the next session too, rather than only this one.
 Projects without a `use_when` still work; sessions just fall back to the
 description, and ask you when it is genuinely unclear.
+
+### The project's web address
+
+Most of the time you talk to a project through its agent, but not always — some
+things are quicker to look at, and some are easier to hit as an HTTP request.
+Each entry carries a **`web_url`**: the address of that project's CatWrangler UI
+and API.
+
+```json
+{ "slug": "arcade", "name": "Arcade Platform",
+  "web_url": "https://pixelarcade-arcade-dev.catwrangler.ai" }
+```
+
+Connecting records it, and every session started in the workspace afterwards
+begins knowing it — so "open the arcade project" or "check that over the API" is
+something you can just say, without going to find the address first. In a
+workspace with several projects each keeps its own, so the right one comes back.
+
+It does not change how the work gets done: sessions still read code, decisions,
+and history through the server's tools, which is the path that respects the
+project's gates. The address is for the browser tab and the odd API call.
+
+It comes from the server and is refreshed whenever you connect, so if a project
+moves, reconnecting picks up the new address. The plugin never guesses one — a
+project whose address the server does not report simply has no `web_url`, and
+everything else about it works as before.
 
 ## Scopes
 

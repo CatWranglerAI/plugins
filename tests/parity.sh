@@ -64,15 +64,21 @@ make_fixtures() {
 EOF
   mkdir -p "$w/fix/none" "$w/fix/one" "$w/fix/many" "$w/fix/zero" "$w/fix/bad" "$w/fix/routed"
   cat > "$w/fix/one/.catwrangler" <<'EOF'
-{"version":1,"server":"https://mcp.catwrangler.ai","mcp_url":"https://mcp.catwrangler.ai/mcp","projects":[{"slug":"arcade","id":"p-841207","org_slug":"pixel","name":"Arcade Platform","description":"Cross-game plane."}]}
+{"version":1,"server":"https://mcp.catwrangler.ai","mcp_url":"https://mcp.catwrangler.ai/mcp","projects":[{"slug":"arcade","id":"p-841207","org_slug":"pixel","name":"Arcade Platform","description":"Cross-game plane.","web_url":"https://pixel-arcade-dev.catwrangler.ai"}]}
 EOF
+  # `many` deliberately carries NO web_url on any entry: it is the fixture that
+  # proves the bootstrap stays silent about web URLs when nothing has one,
+  # rather than emitting the explanatory paragraph unconditionally.
   cat > "$w/fix/many/.catwrangler" <<'EOF'
 {"version":1,"server":"https://mcp.catwrangler.ai","projects":[{"slug":"arcade","id":"p-841207","name":"Arcade"},{"slug":"neon","id":"p-773915"},{"slug":"dungeon","description":"cats"},{"slug":"d4"},{"slug":"d5"}]}
 EOF
   # Two projects with local routing notes, one without: the disambiguation path,
-  # including how it degrades for an entry that never got a use_when.
+  # including how it degrades for an entry that never got a use_when. The same
+  # fixture covers web_url's mixed case — two entries have one and `plain` does
+  # not, so the per-project line has to be conditional while the explanatory
+  # paragraph still fires once for the workspace.
   cat > "$w/fix/routed/.catwrangler" <<'EOF'
-{"version":1,"server":"https://mcp.catwrangler.ai","projects":[{"slug":"arcade","id":"p-841207","name":"Arcade","description":"Cross-game plane.","use_when":"coins, accounts, leaderboards — anything shared across games"},{"slug":"neon","id":"p-773915","use_when":"the racing game itself; they call it \"the racer\""},{"slug":"plain","id":"p-620384"}]}
+{"version":1,"server":"https://mcp.catwrangler.ai","projects":[{"slug":"arcade","id":"p-841207","name":"Arcade","description":"Cross-game plane.","use_when":"coins, accounts, leaderboards — anything shared across games","web_url":"https://pixel-arcade-dev.catwrangler.ai"},{"slug":"neon","id":"p-773915","use_when":"the racing game itself; they call it \"the racer\"","web_url":"https://pixel-neon-dev.catwrangler.ai"},{"slug":"plain","id":"p-620384"}]}
 EOF
   echo '{"version":1,"projects":[]}' > "$w/fix/zero/.catwrangler"
   echo '{not json'                   > "$w/fix/bad/.catwrangler"
@@ -95,15 +101,17 @@ transcript() {
   unset CLAUDE_PROJECT_DIR
 
   # Registry CRUD: creation, org disambiguation, in-place refresh, the
-  # ambiguous-remove refusal, and every error path. The two solo adds after the
-  # first are the use_when survival check — set it, then refresh the entry
-  # WITHOUT the flag; the final registry dump proves it was not overwritten.
+  # ambiguous-remove refusal, and every error path. The three solo adds after the
+  # first are the survival check for the fields set one at a time — set use_when,
+  # then web_url, then refresh the entry with NEITHER flag; the final registry
+  # dump proves an add that omits a field does not clear it.
   local specs=(
     "list --dir $d"
     "add --slug solo --dir $d"
     "add --slug solo --use-when shared-plumbing --dir $d"
+    "add --slug solo --web-url https://solo-dev.catwrangler.ai --dir $d"
     "add --slug solo --name SoloV2 --dir $d"
-    "add --slug arcade --id p-841207 --org pixel --name Arcade --desc Cross-game. --dir $d"
+    "add --slug arcade --id p-841207 --org pixel --name Arcade --desc Cross-game. --web-url https://pixel-arcade-dev.catwrangler.ai --dir $d"
     "add --slug arcade --org neon --dir $d"
     "add --slug arcade --org pixel --name ArcadeV2 --dir $d"
     "list --dir $d"
