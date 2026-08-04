@@ -34,12 +34,12 @@ for arg in "$@"; do
   esac
 done
 
-# Adapter paths per host: "<manage.mjs> <session-start.mjs>". A host with no
-# adapters yet is simply absent here.
+# Adapter paths per host: "<manage.mjs> <session-start.mjs> <subagent-start.mjs>".
+# A host with no adapters yet is simply absent here.
 adapters() {
   case "$1" in
-    claude) echo "skills/connect/scripts/manage.mjs scripts/session-start.mjs" ;;
-    codex)  echo "skills-codex/connect/scripts/manage.mjs scripts/session-start-codex.mjs" ;;
+    claude) echo "skills/connect/scripts/manage.mjs scripts/session-start.mjs scripts/subagent-start.mjs" ;;
+    codex)  echo "skills-codex/connect/scripts/manage.mjs scripts/session-start-codex.mjs scripts/subagent-start-codex.mjs" ;;
     *) return 1 ;;
   esac
 }
@@ -89,7 +89,7 @@ EOF
 # scratch dir to a fixed token — otherwise the golden only matches on the
 # machine that recorded it.
 transcript() {
-  local manage=$1 hook=$2 w=$3
+  local manage=$1 hook=$2 sub=$3 w=$4
   local d="$w/registry"
   rm -rf "$d"; mkdir -p "$d"
   # Default for everything below; the home-fallback cases override it inline.
@@ -200,6 +200,35 @@ transcript() {
   # the golden records whatever happens to be above it on this machine.
   echo "--- hook empty stdin";   (cd "$w/fix/none" && echo ''         | node "$ROOT/$hook"); echo "exit=$?"
   echo "--- hook garbage stdin"; (cd "$w/fix/none" && echo 'not json' | node "$ROOT/$hook"); echo "exit=$?"
+
+  # The sub-agent bootstrap, over the same registry shapes. Two properties this
+  # section exists to pin, both of which are silent when they break:
+  #   - `none` and `bad` must produce a bare {}. The hook is installed
+  #     user-global, so every sub-agent on the machine runs it; anything but {}
+  #     outside a workspace is the plugin talking where it was not invited.
+  #   - No output may ever carry systemMessage. SubagentStart fires per spawn,
+  #     and a fan-out would broadcast it once per sub-agent.
+  # agent_type varies because it is what the hosts match a hook `matcher`
+  # against, so it is the field most likely to acquire behavior by accident.
+  for f in none one many routed zero bad; do
+    for at in general-purpose Explore; do
+      echo "--- subagent $f $at"
+      echo "{\"cwd\":\"$w/fix/$f\",\"agent_id\":\"a-1\",\"agent_type\":\"$at\",\"hook_event_name\":\"SubagentStart\"}" | node "$sub"
+      echo "exit=$?"
+    done
+  done
+  # The hunt applies to sub-agents too: one spawned deep inside a configured repo
+  # is still inside the workspace.
+  echo "--- subagent nested-subdir"
+  echo "{\"cwd\":\"$w/fix/nested/src/api/handlers\",\"agent_id\":\"a-1\",\"agent_type\":\"general-purpose\",\"hook_event_name\":\"SubagentStart\"}" | node "$sub"
+  echo "exit=$?"
+  # And so does the home fallback — same directory as the {} case above, on a
+  # machine whose home registry claims it.
+  echo "--- subagent home-fallback"
+  echo "{\"cwd\":\"$w/fix/none\",\"agent_id\":\"a-1\",\"agent_type\":\"general-purpose\",\"hook_event_name\":\"SubagentStart\"}" | HOME="$w/home-reg" node "$sub"
+  echo "exit=$?"
+  echo "--- subagent empty stdin";   (cd "$w/fix/none" && echo ''         | node "$ROOT/$sub"); echo "exit=$?"
+  echo "--- subagent garbage stdin"; (cd "$w/fix/none" && echo 'not json' | node "$ROOT/$sub"); echo "exit=$?"
 }
 
 mkdir -p "$GOLD"
@@ -265,8 +294,8 @@ alias_check() {
 if alias_check; then :; else status=1; fi
 
 for host in "${HOSTS[@]}"; do
-  read -r manage hook <<<"$(adapters "$host")" || { echo "unknown host: $host" >&2; exit 2; }
-  if [ ! -f "$manage" ] || [ ! -f "$hook" ]; then
+  read -r manage hook sub <<<"$(adapters "$host")" || { echo "unknown host: $host" >&2; exit 2; }
+  if [ ! -f "$manage" ] || [ ! -f "$hook" ] || [ ! -f "$sub" ]; then
     echo "skip $host — adapters not present yet"
     continue
   fi
@@ -275,7 +304,7 @@ for host in "${HOSTS[@]}"; do
   work=$(mktemp -d)
   make_fixtures "$work"
   out=$(mktemp)
-  transcript "$manage" "$hook" "$work" > "$out" 2>&1
+  transcript "$manage" "$hook" "$sub" "$work" > "$out" 2>&1
   # Normalize the scratch path so the golden is machine-independent. The
   # /private form first: macOS resolves the symlinked temp root when a process
   # actually cd's there, so the same directory reaches the transcript both ways.

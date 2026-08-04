@@ -1,7 +1,7 @@
 # CatWrangler — Claude Code and Codex plugin
 
 Onboards your coding agent to a CatWrangler workspace with **no URL typing and no
-hand-written CLAUDE.md**. Installing the plugin does two things:
+hand-written CLAUDE.md**. Installing the plugin does three things:
 
 1. **Registers the CatWrangler MCP server** (bundled — the user never types a URL).
 2. **Injects the CatWrangler bootstrap protocol at session start**, read from a
@@ -11,6 +11,10 @@ hand-written CLAUDE.md**. Installing the plugin does two things:
    instance, recoverable on reconnect), and the no-local-source rule (use MCP
    tools, not `Read`/`Grep`/`cat`). This is the deterministic, app-less
    replacement for the CLAUDE.md bootstrap mandate.
+3. **Bootstraps every sub-agent the same way.** A sub-agent is a fresh context
+   that never saw the session's injection, so it gets its own — the project it
+   belongs to, the same identity and no-local-source rules, plus how to connect
+   under its parent rather than beside it.
 
 Connect a workspace once, with `/catwrangler:connect`, and every session started
 there picks the project up on its own from then on.
@@ -27,12 +31,13 @@ plugins/                                 ← repo root (github.com/CatWranglerAI
 ├── lib/                                 ← everything the plugin actually does
 │   ├── registry.mjs                     ← .catwrangler find/read/write, pure functions
 │   ├── manage-cli.mjs                   ← argv → JSON stdout, exit codes
-│   ├── bootstrap.mjs                    ← what SessionStart tells the model
-│   ├── protocol.mjs                     ← the session rules BOTH paths deliver
-│   └── hook.mjs                         ← SessionStart stdin/stdout contract
+│   ├── bootstrap.mjs                    ← what the hooks tell the model
+│   ├── protocol.mjs                     ← the rules EVERY path delivers
+│   └── hook.mjs                         ← hook stdin/stdout contract
 ├── src/skill-connect.md                 ← the ONE source for both SKILL.md files
 ├── tools/build-skills.mjs               ← renders src/ → each host's SKILL.md
 ├── scripts/session-start.sh             ← wrapper: reports a missing/broken Node
+│                                          (shared by both hook events; $2 = event)
 ├── scripts/manage.mjs                   ← alias for the skills' entry point below
 ├── tests/parity.sh                      ← golden transcripts; proves the hosts agree
 ├── tests/codex-wire.mjs                 ← proves Codex will accept the hook's stdout
@@ -43,16 +48,18 @@ plugins/                                 ← repo root (github.com/CatWranglerAI
 │   ├── marketplace.json                 ← lists the plugin (source "./")
 │   └── plugin.json                      ← manifest (bundles the MCP server)
 ├── mcp-config.json                      ← MCP entry, {mcpServers:{…}}, ms timeout
-├── hooks/hooks.json                     ← SessionStart → session-start.sh
+├── hooks/hooks.json                     ← Session/SubagentStart → session-start.sh
 ├── scripts/session-start.mjs            ← adapter (~3 lines over lib/)
+├── scripts/subagent-start.mjs           ← adapter (~3 lines over lib/)
 ├── skills/connect/SKILL.md              ← GENERATED from src/
 │   └── scripts/manage.mjs               ← entry point; delegates to lib/
 │
 │   ── Codex ──
 ├── .codex-plugin/plugin.json            ← manifest (points skills/hooks below)
 ├── .mcp.json                            ← MCP entry, bare map, seconds timeout
-├── hooks.json                           ← SessionStart → session-start.sh
+├── hooks.json                           ← Session/SubagentStart → session-start.sh
 ├── scripts/session-start-codex.mjs      ← adapter (~3 lines over lib/)
+├── scripts/subagent-start-codex.mjs     ← adapter (~3 lines over lib/)
 └── skills-codex/connect/SKILL.md        ← GENERATED from src/
     └── scripts/manage.mjs               ← entry point; delegates to lib/
 ```
@@ -96,8 +103,11 @@ catch-up briefing.
   `${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}`.
 
 `tests/codex-wire.mjs` checks the emitted shape against Codex's
-`session-start.command.output` schema, so a field it would reject fails by name
-in the suite instead.
+`session-start.command.output` and `subagent-start.command.output` schemas, so a
+field it would reject fails by name in the suite instead. Those two schemas are
+the same schema twice, differing only in the `const` pinning `hookEventName` —
+which is why the shared wrapper takes the event name as an argument rather than
+assuming it.
 
 Codex also asks once before running a plugin's hooks, and again after the hook
 config changes; until it is accepted the hook does not run. `codex exec` skips an
@@ -119,14 +129,23 @@ before using the bundled skill or tools — Codex does not hot-reload plugins.
 Then drop a `.catwrangler` file (copy `examples/sample.catwrangler`) into a test
 directory, start a session there, and the hook fires.
 
-Test either hook directly without installing:
+Test any hook directly without installing:
 
 ```shell
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
   | sh scripts/session-start.sh                        # Claude Code
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
   | sh scripts/session-start.sh session-start-codex.mjs   # Codex
+
+printf '{"cwd":"<dir-with-.catwrangler>","agent_id":"a-1","agent_type":"general-purpose"}' \
+  | sh scripts/session-start.sh subagent-start.mjs       SubagentStart   # Claude Code
+printf '{"cwd":"<dir-with-.catwrangler>","agent_id":"a-1","agent_type":"general-purpose"}' \
+  | sh scripts/session-start.sh subagent-start-codex.mjs SubagentStart   # Codex
 ```
+
+Point the sub-agent ones at a directory with no `.catwrangler` and they must
+print exactly `{}` — the hook is installed user-global, so it runs for every
+sub-agent on the machine and has to be silent outside a workspace.
 
 Run the full suite — both hosts' transcripts, the Codex wire-shape check, and the
 SKILL.md staleness check — with `tests/parity.sh`. After an intentional change, re-record with
@@ -197,16 +216,18 @@ not registered here. This is deliberate: a stale local file must never override 
 server access, and project identity must never be inferred from the local
 environment.
 
-## How the hook behaves
+## How the hooks behave
 
-SessionStart fires **before MCP servers connect**, so the hook never inspects
-auth/connection state — it only *injects the instruction* and lets the model act
-once MCP is up.
+Two events, one wrapper, one `lib/`. Both fire **before MCP servers connect**, so
+neither hook inspects auth/connection state — they only *inject the instruction*
+and let the model act once MCP is up. Neither ever starts a turn: the context
+attaches to whatever the user (or the parent) actually asked for.
+
+### SessionStart
 
 | Situation | Behavior |
 |---|---|
 | `.catwrangler` present, ≥1 project | Injects the menu + `init_session` instruction; shows the user a one-line notice |
-| Non-interactive run (`claude -p`) | Also supplies an opening turn — connect, then summarize what's new — so a headless session never starts work unconnected. Interactive sessions ignore it; not sent on `clear`/`compact` |
 | `.catwrangler` present, 1 project | Instructs a deterministic connect to that project |
 | `.catwrangler` present, 0 projects | Instructs the model to fetch the list from `init_session` |
 | `.catwrangler` in a parent, or in `~` | Same as above — it governs this directory. The notice names the file, since it is not where the user is standing |
@@ -214,6 +235,38 @@ once MCP is up.
 | `.catwrangler` malformed | User-visible notice naming the file, no crash |
 | Node.js not on `PATH` | User-visible "install Node 18+" notice + a model-facing note that the bootstrap was skipped; session continues |
 | Node present but the hook errors | Same shape, pointing at `node --version` |
+
+### SubagentStart
+
+Fires once per sub-agent spawn, on both hosts, under the same event name. A
+sub-agent is a fresh context that never saw the SessionStart injection — so
+without this it starts inside a CatWrangler workspace reaching for `Read`/`Grep`
+on a tree that holds no source, or connecting without `parent_agent_id` and
+taking a peer identity instead of a sub-branch the parent can assemble.
+
+It differs from SessionStart in two ways, both because the audience is the model
+and not the user:
+
+- **It never shows the user anything.** No notice, on any path. The event fires
+  per spawn, so a fan-out of ten sub-agents would print the same banner ten times
+  under a session that already said it once.
+- **It is silent unless it has something to say.** The hook is installed
+  user-global and therefore runs for every sub-agent on the machine; outside a
+  CatWrangler workspace it emits exactly `{}`.
+
+| Situation | Behavior |
+|---|---|
+| `.catwrangler` present, 1 project | Instructs a deterministic connect to that project, with its `id` |
+| `.catwrangler` present, >1 project | Lists them with their `use when` notes; says to route by the parent's task, and to **ask the parent** rather than guess when the task does not settle it |
+| `.catwrangler` present, 0 projects | Instructs the model to fetch the list from `init_session` |
+| `.catwrangler` in a parent, or in `~` | Same as above — the hunt applies to sub-agents too |
+| No `.catwrangler` anywhere above | `{}` — nothing at all |
+| `.catwrangler` malformed | `{}` — SessionStart already reported it to the user, who is the only one who can fix it |
+
+Beyond the project menu it carries the rules a sub-agent gets wrong by default:
+the `_agent_id` discipline, the no-local-source rule, `parent_agent_id` for a
+sub-identity under the parent, and "work under the parent's decision — do not
+register your own, do not merge to trunk."
 
 ## Requirements
 

@@ -18,15 +18,25 @@
 # Requires a POSIX shell — macOS, Linux, WSL, or Windows with Git for Windows
 # (Claude Code runs hooks through Git Bash there).
 #
-# Shared by every host. $1 names the Node hook adapter to run, defaulting to the
-# Claude Code one so an existing hooks.json entry keeps working unchanged:
+# Shared by every host AND by both hook events. $1 names the Node hook adapter to
+# run and $2 the hook event it serves, both defaulting to the Claude Code
+# SessionStart case so an existing hooks.json entry keeps working unchanged:
 #
-#   sh session-start.sh                          → session-start.mjs      (Claude Code)
-#   sh session-start.sh session-start-codex.mjs  → the Codex adapter
+#   sh session-start.sh                                            → session-start.mjs (Claude Code)
+#   sh session-start.sh session-start-codex.mjs                    → the Codex adapter
+#   sh session-start.sh subagent-start.mjs       SubagentStart     → Claude Code, sub-agent spawn
+#   sh session-start.sh subagent-start-codex.mjs SubagentStart     → Codex, sub-agent spawn
+#
+# The event name is not cosmetic. Codex pins hookEventName to a per-event `const`
+# in its output schema, so a fallback below that echoed SessionStart into a
+# SubagentStart hook would be rejected exactly like an unknown field — and the
+# rejection reads as the same opaque parse error, on the path that only runs when
+# something is already broken.
 #
 # Only the adapter differs per host; every notice below is host-neutral.
 
 set -u
+EVENT="${2:-SessionStart}"
 
 # Prefer an injected plugin root; hooks resolve relative paths against the
 # process working directory, which is the session's cwd, not the plugin's.
@@ -54,14 +64,25 @@ HOOK="$DIR/${1:-session-start.mjs}"
 # like it worked because systemMessage still reaches the user.
 # A literal two-character \n in these strings is exactly what JSON wants, and
 # %b (not %s) expands it to a real newline on the stderr copy.
+#
+# The user notice is carried only by SessionStart. A broken install is worth
+# saying loudly, but it is worth saying ONCE: SubagentStart fires per spawn, so a
+# fan-out would repeat the same notice ten times under a session that already
+# reported it. The sub-agent path keeps the model context — which is per-context
+# and therefore not a repeat — and keeps the stderr copy above, so `--debug`
+# still shows every occurrence.
 emit() {
   printf '%b\n' "$1" >&2
-  printf '{"systemMessage":"%s","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}' "$1" "$2"
+  if [ "$EVENT" = "SessionStart" ]; then
+    printf '{"systemMessage":"%s","hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"}}' "$1" "$EVENT" "$2"
+  else
+    printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"}}' "$EVENT" "$2"
+  fi
   exit 0
 }
 
 NO_NODE_USER='\n\nCatWrangler plugin: Node.js was not found on PATH, so the session bootstrap did not run.\n  - Install Node 18+ (https://nodejs.org, or: brew install node / nvm install --lts), then start a new session.\n  - Until then, connect manually by calling the catwrangler MCP server init_session tool.'
-NO_NODE_MODEL='The CatWrangler SessionStart hook could not run because Node.js is not installed on PATH, so the usual workspace bootstrap (project menu + init_session instruction) was skipped. Tell the user Node 18+ is required for the CatWrangler plugin hook. You can still work: call the catwrangler MCP server init_session tool yourself and follow the protocol it returns.'
+NO_NODE_MODEL="The CatWrangler $EVENT hook could not run because Node.js is not installed on PATH, so the usual workspace bootstrap (project menu + init_session instruction) was skipped. Tell the user Node 18+ is required for the CatWrangler plugin hook. You can still work: call the catwrangler MCP server init_session tool yourself and follow the protocol it returns."
 
 if ! command -v node >/dev/null 2>&1; then
   emit "$NO_NODE_USER" "$NO_NODE_MODEL"
@@ -69,7 +90,7 @@ fi
 
 if [ ! -f "$HOOK" ]; then
   emit '\n\nCatWrangler plugin: the session bootstrap script is missing from the plugin directory.\n  - The session bootstrap did not run — reinstall the plugin.' \
-       'The CatWrangler SessionStart hook script is missing, so the workspace bootstrap was skipped. Call the catwrangler MCP server init_session tool yourself and follow the protocol it returns.'
+       "The CatWrangler $EVENT hook script is missing, so the workspace bootstrap was skipped. Call the catwrangler MCP server init_session tool yourself and follow the protocol it returns."
 fi
 
 # Git Bash hands this script POSIX-form paths (`/c/Users/...`). A native
@@ -90,7 +111,7 @@ STATUS=$?
 
 if [ "$STATUS" -ne 0 ]; then
   emit '\n\nCatWrangler plugin: the session bootstrap hook failed to run under Node.\n  - Node may be too old — Node 18+ is required. Check with: node --version\n  - The session continues without the CatWrangler project menu.' \
-       'The CatWrangler SessionStart hook exited with an error, so the workspace bootstrap was skipped. Call the catwrangler MCP server init_session tool yourself and follow the protocol it returns.'
+       "The CatWrangler $EVENT hook exited with an error, so the workspace bootstrap was skipped. Call the catwrangler MCP server init_session tool yourself and follow the protocol it returns."
 fi
 
 # Never hand the host empty stdout: Codex reads it as invalid JSON. The adapters

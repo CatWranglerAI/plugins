@@ -12,6 +12,19 @@
           }
         ]
       }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\" subagent-start-codex.mjs SubagentStart",
+            "statusMessage": "Connecting sub-agent to CatWrangler",
+            "additionalContextLimit": 8000
+          }
+        ]
+      }
     ]
   }
 }
