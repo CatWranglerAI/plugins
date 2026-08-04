@@ -74,9 +74,20 @@ const HOSTS = {
     out: join(ROOT, 'skills-codex', 'connect', 'SKILL.md'),
     tokens: {
       // Codex documents referencing bundled scripts by a path relative to the
-      // skill directory. UNVERIFIED against a live install — if Codex resolves
-      // these against the session cwd instead, this is the one token to change.
-      MANAGE: 'scripts/manage.mjs',
+      // skill directory, and its system prompt says so outright: "When SKILL.md
+      // references relative paths (e.g. scripts/foo.py), resolve them relative to
+      // the directory containing that expanded SKILL.md first."
+      //
+      // Verified against a live install — and the model still got it wrong. It
+      // read skills-codex/connect/SKILL.md and then ran <plugin-root>/scripts/
+      // manage.mjs: MODULE_NOT_FOUND, a hunt, a retry. The plugin root has a real
+      // scripts/ of its own, so the wrong join looks perfectly plausible.
+      //
+      // Two changes answer that, and they are deliberately belt and braces. The
+      // leading ./ plus the note the source adds for this host say which
+      // directory; scripts/manage.mjs at the plugin root makes the other guess
+      // work anyway. Leaving it to the prompt alone was already tried.
+      MANAGE: './scripts/manage.mjs',
     },
   },
 };

@@ -226,6 +226,28 @@ fi
 # the wire shape is checked against its schema separately.
 if node tests/codex-wire.mjs; then :; else status=1; fi
 
+# scripts/manage.mjs is the plugin-root alias, there because agents resolve the
+# skill's relative path against the root and land on it. Nothing below covers it
+# — the golden transcripts run each host's own skill-directory entry point — so
+# it is exactly the file that rots unnoticed when lib/ moves. Check the one thing
+# it promises: same command, same bytes, same exit code as the real entry point.
+alias_check() {
+  local d out_a out_b rc_a rc_b
+  d=$(mktemp -d)
+  out_a=$(node scripts/manage.mjs list --dir "$d" 2>&1); rc_a=$?
+  out_b=$(node skills-codex/connect/scripts/manage.mjs list --dir "$d" 2>&1); rc_b=$?
+  rm -rf "$d"
+  if [ "$out_a" = "$out_b" ] && [ "$rc_a" = "$rc_b" ]; then
+    echo "ok   root alias"
+  else
+    echo "FAIL root alias — scripts/manage.mjs diverged from the skill entry point"
+    echo "  root:  exit=$rc_a $out_a"
+    echo "  skill: exit=$rc_b $out_b"
+    return 1
+  fi
+}
+if alias_check; then :; else status=1; fi
+
 for host in "${HOSTS[@]}"; do
   read -r manage hook <<<"$(adapters "$host")" || { echo "unknown host: $host" >&2; exit 2; }
   if [ ! -f "$manage" ] || [ ! -f "$hook" ]; then

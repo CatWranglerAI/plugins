@@ -66,7 +66,12 @@ returns, so run it before anything else:
 node {{MANAGE}} list
 ```
 
-It prints one JSON object and needs no network. If it fails for any reason —
+{{#codex}}That path is relative to **this skill's own directory** — the `scripts/`
+folder sitting beside this `SKILL.md` file, which is a different directory from
+the plugin root's `scripts/`. Expand it against wherever you read this file from,
+or hand `node` the absolute path.
+
+{{/codex}}It prints one JSON object and needs no network. If it fails for any reason —
 `node: command not found`, a non-zero exit, unparseable output — **stop and tell
 the user**, per "When manage.mjs fails" below. Do not carry on as though the
 workspace were empty: an unreadable registry and an empty one are different

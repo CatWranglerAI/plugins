@@ -33,6 +33,7 @@ plugins/                                 ← repo root (github.com/CatWranglerAI
 ├── src/skill-connect.md                 ← the ONE source for both SKILL.md files
 ├── tools/build-skills.mjs               ← renders src/ → each host's SKILL.md
 ├── scripts/session-start.sh             ← wrapper: reports a missing/broken Node
+├── scripts/manage.mjs                   ← alias for the skills' entry point below
 ├── tests/parity.sh                      ← golden transcripts; proves the hosts agree
 ├── tests/codex-wire.mjs                 ← proves Codex will accept the hook's stdout
 ├── examples/sample.catwrangler          ← what the /connect flow generates
@@ -277,8 +278,15 @@ right now", and a connected project with no session is perfectly normal.
 The skill drives all server interaction and the `AskUserQuestion` prompts; the
 bundled `manage.mjs` owns every `.catwrangler` read/write, so JSON shape,
 dedup-by-slug, and unknown-field preservation are deterministic (the model never
-hand-edits the file). `manage.mjs` references itself via `${CLAUDE_SKILL_DIR}` and
-does no network I/O.
+hand-edits the file). It does no network I/O.
+
+Each host's skill carries its own copy of that entry point, because each host
+names it differently: Claude Code substitutes `${CLAUDE_SKILL_DIR}`, and Codex
+takes a path relative to the skill's directory. That second form is easy to
+resolve against the plugin root instead — so `scripts/manage.mjs` at the root is
+an alias for the same CLI, and the wrong guess costs nothing. All three paths run
+one implementation in `lib/`, and the registry they edit is found by hunting from
+the working directory, never from the script's own location.
 
 The available half of the listing comes from the server's `list_projects` tool,
 which needs no `init_session` — so you can see what exists before connecting

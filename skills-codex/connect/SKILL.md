@@ -59,8 +59,13 @@ Two things people type that are not verbs, both of which you should just handle:
 returns, so run it before anything else:
 
 ```
-node scripts/manage.mjs list
+node ./scripts/manage.mjs list
 ```
+
+That path is relative to **this skill's own directory** — the `scripts/`
+folder sitting beside this `SKILL.md` file, which is a different directory from
+the plugin root's `scripts/`. Expand it against wherever you read this file from,
+or hand `node` the absolute path.
 
 It prints one JSON object and needs no network. If it fails for any reason —
 `node: command not found`, a non-zero exit, unparseable output — **stop and tell
@@ -122,7 +127,7 @@ There is no separate "connect" step; this verb is the whole of it, in three part
 
 3. **Record it**, so this is permanent and no future session has to repeat it:
    ```
-   node scripts/manage.mjs add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>" --web-url "<web_url>" --use-when "<routing note>"
+   node ./scripts/manage.mjs add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>" --web-url "<web_url>" --use-when "<routing note>"
    ```
    Carry `--id`, `--org`, `--name`, `--desc`, and `--web-url` whenever
    `list_projects` gave you them. `--id` is what lets the *next* session open the
@@ -166,7 +171,7 @@ available**. It edits `.catwrangler` and nothing else. It does not end a live
 session, and it does not touch the user's access — the project goes back to
 available, not away. Say that, so nobody reads it as losing something.
 ```
-node scripts/manage.mjs remove --slug "<slug>"
+node ./scripts/manage.mjs remove --slug "<slug>"
 ```
 If that slug is connected under more than one org the script refuses and names the
 orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
@@ -213,7 +218,7 @@ Anything longer is a second CLAUDE.md that nobody is curating.
 the racer", "leaderboard work goes to the platform" — that sentence is a better
 `use_when` than anything you would have drafted. Record it:
 ```
-node scripts/manage.mjs add --slug "<slug>" --use-when "<the corrected rule>"
+node ./scripts/manage.mjs add --slug "<slug>" --use-when "<the corrected rule>"
 ```
 `add` updates in place, and passing only `--slug` and `--use-when` leaves every
 other field alone. This is the whole point of the field: a correction that is not
