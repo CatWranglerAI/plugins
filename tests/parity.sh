@@ -221,6 +221,22 @@ else
   fi
 fi
 
+# All three manifests carry the version, and an installed copy reports whichever
+# one its host read. A bump that updated some of them and not others would ship a
+# plugin that misreports itself, so VERSION is the single source and the manifests
+# are checked against it here.
+if [ "$UPDATE" = "1" ]; then
+  node tools/sync-version.mjs > /dev/null && echo "ok   version (synced)"
+else
+  if node tools/sync-version.mjs --check > /dev/null 2>&1; then
+    echo "ok   version"
+  else
+    echo "FAIL version — a manifest disagrees with VERSION"
+    node tools/sync-version.mjs --check 2>&1 | grep -E 'STALE|sync-version:'
+    status=1
+  fi
+fi
+
 # The goldens prove the adapters match their recorded behavior; they say nothing
 # about whether a host will ACCEPT it. Codex validates hook stdout strictly, so
 # the wire shape is checked against its schema separately.
