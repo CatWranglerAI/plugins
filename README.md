@@ -21,56 +21,57 @@ there picks the project up on its own from then on.
 
 ## Layout
 
-The repo root is the plugin root **for both hosts** — one tree, two manifests.
-Everything that is not a manifest, an MCP config, or a hook entry is shared:
+One plugin root, shared by **both hosts** — one tree, two manifests. The
+marketplace manifest sits above it at the repo root, which is where a host looks
+for it; the plugin it lists is the directory beneath:
 
 ```
-plugins/                                 ← repo root (github.com/CatWranglerAI/plugins)
+github.com/CatWranglerAI/plugins          ← repo root
 │
-│   ── shared: one copy, both hosts ──
-├── lib/                                 ← everything the plugin actually does
-│   ├── registry.mjs                     ← .catwrangler find/read/write, pure functions
-│   ├── manage-cli.mjs                   ← argv → JSON stdout, exit codes
-│   ├── bootstrap.mjs                    ← what the hooks tell the model
-│   ├── protocol.mjs                     ← the rules EVERY path delivers
-│   └── hook.mjs                         ← hook stdin/stdout contract
-├── src/skill-connect.md                 ← the ONE source for both SKILL.md files
-├── tools/build-skills.mjs               ← renders src/ → each host's SKILL.md
-├── scripts/session-start.sh             ← wrapper: reports a missing/broken Node
-│                                          (shared by both hook events; $2 = event)
-├── scripts/manage.mjs                   ← alias for the skills' entry point below
-├── tests/parity.sh                      ← golden transcripts; proves the hosts agree
-├── tests/codex-wire.mjs                 ← proves Codex will accept the hook's stdout
-├── examples/sample.catwrangler          ← what the /connect flow generates
+├── .claude-plugin/marketplace.json       ← lists the plugin (source "./plugins/catwrangler")
+├── README.md
 │
-│   ── Claude Code ──
-├── .claude-plugin/
-│   ├── marketplace.json                 ← lists the plugin (source "./")
-│   └── plugin.json                      ← manifest (bundles the MCP server)
-├── mcp-config.json                      ← MCP entry, {mcpServers:{…}}, ms timeout
-├── hooks/hooks.json                     ← Session/SubagentStart → session-start.sh
-├── scripts/session-start.mjs            ← adapter (~3 lines over lib/)
-├── scripts/subagent-start.mjs           ← adapter (~3 lines over lib/)
-├── skills/connect/SKILL.md              ← GENERATED from src/
-│   └── scripts/manage.mjs               ← entry point; delegates to lib/
-│
-│   ── Codex ──
-├── .codex-plugin/plugin.json            ← manifest (points skills/hooks below)
-├── .mcp.json                            ← MCP entry, bare map, seconds timeout
-├── hooks.json                           ← Session/SubagentStart → session-start.sh
-├── scripts/session-start-codex.mjs      ← adapter (~3 lines over lib/)
-├── scripts/subagent-start-codex.mjs     ← adapter (~3 lines over lib/)
-└── skills-codex/connect/SKILL.md        ← GENERATED from src/
-    └── scripts/manage.mjs               ← entry point; delegates to lib/
+└── plugins/catwrangler/                  ← THE PLUGIN — one root, both hosts
+    │
+    │   ── shared: one copy, both hosts ──
+    ├── lib/                              ← everything the plugin actually does
+    │   ├── registry.mjs                  ← .catwrangler find/read/write, pure functions
+    │   ├── manage-cli.mjs                ← argv → JSON stdout, exit codes
+    │   ├── bootstrap.mjs                 ← what the hooks tell the model
+    │   ├── protocol.mjs                  ← the rules EVERY path delivers
+    │   └── hook.mjs                      ← hook stdin/stdout contract
+    ├── src/skill-connect.md              ← the ONE source for both SKILL.md files
+    ├── scripts/session-start.sh          ← wrapper: reports a missing/broken Node
+    │                                       (shared by both hook events; $2 = event)
+    ├── scripts/manage.mjs                ← alias for the skills' entry point below
+    ├── examples/sample.catwrangler       ← what the /connect flow generates
+    │
+    │   ── Claude Code ──
+    ├── .claude-plugin/plugin.json        ← manifest (bundles the MCP server)
+    ├── mcp-config.json                   ← MCP entry, {mcpServers:{…}}, ms timeout
+    ├── hooks/hooks.json                  ← Session/SubagentStart → session-start.sh
+    ├── scripts/session-start.mjs         ← adapter (~3 lines over lib/)
+    ├── scripts/subagent-start.mjs        ← adapter (~3 lines over lib/)
+    ├── skills/connect/SKILL.md           ← GENERATED from src/
+    │   └── scripts/manage.mjs            ← entry point; delegates to lib/
+    │
+    │   ── Codex ──
+    ├── .codex-plugin/plugin.json         ← manifest (points skills/hooks below)
+    ├── .mcp.json                         ← MCP entry, bare map, seconds timeout
+    ├── hooks.json                        ← Session/SubagentStart → session-start.sh
+    ├── scripts/session-start-codex.mjs   ← adapter (~3 lines over lib/)
+    ├── scripts/subagent-start-codex.mjs  ← adapter (~3 lines over lib/)
+    └── skills-codex/connect/SKILL.md     ← GENERATED from src/
+        └── scripts/manage.mjs            ← entry point; delegates to lib/
 ```
 
-**Why one tree.** Claude Code and Codex converged on nearly the same extension
+**Why one root.** Claude Code and Codex converged on nearly the same extension
 surface: the same `skills/<name>/SKILL.md` layout, and a SessionStart hook whose
 output uses the same `hookSpecificOutput.additionalContext` fields. What differs
 is the manifest, the MCP config shape, and a few host-specific escape hatches.
-Codex's manifest lets a plugin point `skills` anywhere, so both plugins can be
-rooted here and share `lib/` as a single copy — rooting Codex in a subdirectory
-would force `lib/` to be duplicated, because a plugin install copies its root.
+Codex's manifest lets a plugin point `skills` anywhere, so both hosts share a
+single plugin root — and therefore a single copy of `lib/`. Giving either host a
+root of its own would duplicate `lib/`, because a plugin install copies its root.
 
 **Why the SKILL.md files are generated.** They are the one thing that genuinely
 must exist twice: Claude Code's `${CLAUDE_SKILL_DIR}` and its `$verb`/`$slug`
@@ -79,10 +80,10 @@ stores a symlink as its path string, and a Windows checkout without
 `core.symlinks` (the default absent Developer Mode) writes a regular file
 *containing that path*, so the customer gets a SKILL.md whose entire content is
 `../../skills/…` and no error anywhere. Both copies are rendered from
-`src/skill-connect.md`; `tests/parity.sh` fails if either is stale.
+`src/skill-connect.md`, and a release fails if either has gone stale.
 
 **What differs between the hosts at runtime.** Nothing, and that is verified
-rather than assumed: `tests/parity.sh` records a transcript per host, and the
+rather than assumed: a transcript is recorded per host on every release, and the
 hook output in them is identical. The plugin injects context and never starts a
 turn, on any host — a session gets the bootstrap instruction attached to whatever
 the user actually opened it to do, and connects as part of doing that. Claude
@@ -102,9 +103,9 @@ catch-up briefing.
 - Codex sets `PLUGIN_ROOT` and `CLAUDE_PLUGIN_ROOT`, so `hooks.json` reads
   `${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}`.
 
-`tests/codex-wire.mjs` checks the emitted shape against Codex's
+Every release checks the emitted shape against Codex's
 `session-start.command.output` and `subagent-start.command.output` schemas, so a
-field it would reject fails by name in the suite instead. Those two schemas are
+field it would reject fails by name before it ships. Those two schemas are
 the same schema twice, differing only in the `const` pinning `hookEventName` —
 which is why the shared wrapper takes the event name as an argument rather than
 assuming it.
@@ -126,36 +127,32 @@ unaccepted hook rather than prompting, so accept it in an interactive session.
 **Codex:** `/plugins`, then install from the marketplace. Start a new session
 before using the bundled skill or tools — Codex does not hot-reload plugins.
 
-Then drop a `.catwrangler` file (copy `examples/sample.catwrangler`) into a test
+Then drop a `.catwrangler` file (copy `plugins/catwrangler/examples/sample.catwrangler`) into a test
 directory, start a session there, and the hook fires.
 
 Test any hook directly without installing:
 
 ```shell
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
-  | sh scripts/session-start.sh                        # Claude Code
+  | sh plugins/catwrangler/scripts/session-start.sh                        # Claude Code
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
-  | sh scripts/session-start.sh session-start-codex.mjs   # Codex
+  | sh plugins/catwrangler/scripts/session-start.sh session-start-codex.mjs   # Codex
 
 printf '{"cwd":"<dir-with-.catwrangler>","agent_id":"a-1","agent_type":"general-purpose"}' \
-  | sh scripts/session-start.sh subagent-start.mjs       SubagentStart   # Claude Code
+  | sh plugins/catwrangler/scripts/session-start.sh subagent-start.mjs       SubagentStart   # Claude Code
 printf '{"cwd":"<dir-with-.catwrangler>","agent_id":"a-1","agent_type":"general-purpose"}' \
-  | sh scripts/session-start.sh subagent-start-codex.mjs SubagentStart   # Codex
+  | sh plugins/catwrangler/scripts/session-start.sh subagent-start-codex.mjs SubagentStart   # Codex
 ```
 
 Point the sub-agent ones at a directory with no `.catwrangler` and they must
 print exactly `{}` — the hook is installed user-global, so it runs for every
 sub-agent on the machine and has to be silent outside a workspace.
 
-Run the full suite — both hosts' transcripts, the Codex wire-shape check, and the
-SKILL.md staleness check — with `tests/parity.sh`. After an intentional change, re-record with
-`tests/parity.sh --update` and review the golden diff.
-
 Simulate a machine without Node (should print an install notice, exit 0):
 
 ```shell
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
-  | env PATH=/usr/bin:/bin sh scripts/session-start.sh
+  | env PATH=/usr/bin:/bin sh plugins/catwrangler/scripts/session-start.sh
 ```
 
 ## The `.catwrangler` file
