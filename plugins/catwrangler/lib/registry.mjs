@@ -37,6 +37,14 @@ const fail = (msg) => {
  * Unwrapping `mcpServers` when present and treating the object as the map
  * otherwise covers both without the caller knowing which host it is on.
  *
+ * DO NOT SIMPLIFY THE KEY LOOKUP BELOW to `servers.catwrangler`. The server name
+ * is not fixed: this same file is published twice, and the internal build has
+ * its key renamed so the two plugins do not collide in Codex's global MCP
+ * table. `servers.catwrangler` is the named-key path for the customer build and
+ * the fallback to the sole remaining entry is what carries the other one —
+ * dropping it would leave the internal plugin with no endpoint at all, silently,
+ * because an empty mcpUrl just moves on to the next filename.
+ *
  * Resolved from this file's own location (lib/ → plugin root), not from an env
  * var, so it holds however the script is invoked and on hosts that expose no
  * plugin-root variable at all. Returns empty strings when it cannot be
