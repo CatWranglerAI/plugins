@@ -57,7 +57,7 @@ github.com/CatWranglerAI/plugins          ← repo root
     │
     │   ── Codex ──
     ├── .codex-plugin/plugin.json         ← manifest (points skills/hooks below)
-    ├── .mcp.json                         ← MCP entry, bare map, seconds timeout
+    ├── codex-mcp.json                    ← MCP entry, bare map, seconds timeout
     ├── hooks.json                        ← Session/SubagentStart → session-start.sh
     ├── scripts/session-start-codex.mjs   ← adapter (~3 lines over lib/)
     ├── scripts/subagent-start-codex.mjs  ← adapter (~3 lines over lib/)
@@ -284,8 +284,8 @@ Progress notifications do not extend the timer. Note that this value is also a
 floor on the idle timeout, so a genuinely stuck call takes 10 minutes to abort
 rather than the default 5.
 
-Codex splits the same concern into two fields, **in seconds**, so `.mcp.json`
-carries `tool_timeout_sec: 600` — the direct equivalent of Claude's 600000ms, and
+Codex splits the same concern into two fields, **in seconds**, so
+`codex-mcp.json` carries `tool_timeout_sec: 600` — the direct equivalent of Claude's 600000ms, and
 for the same reason — plus `startup_timeout_sec: 120`. Codex defaults those to 60
 and 10, both far too low here. Startup is deliberately *not* 600: Claude's single
 timer covers connect and calls alike, but splitting them means a dead endpoint

@@ -33,7 +33,7 @@ const fail = (msg) => {
  *
  * Reads whichever manifest the host uses, because the two disagree on shape:
  *   Claude Code  mcp-config.json  { "mcpServers": { "catwrangler": { url } } }
- *   Codex        .mcp.json        { "catwrangler": { url } }          (bare map)
+ *   Codex        codex-mcp.json   { "catwrangler": { url } }          (bare map)
  * Unwrapping `mcpServers` when present and treating the object as the map
  * otherwise covers both without the caller knowing which host it is on.
  *
@@ -44,7 +44,7 @@ const fail = (msg) => {
  */
 export function pluginDefaults() {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-  for (const name of ['mcp-config.json', '.mcp.json']) {
+  for (const name of ['mcp-config.json', 'codex-mcp.json']) {
     try {
       const cfg = JSON.parse(readFileSync(join(root, name), 'utf8'));
       const servers = (cfg && cfg.mcpServers) || cfg || {};

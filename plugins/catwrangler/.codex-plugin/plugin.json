@@ -1,6 +1,6 @@
 {
   "name": "catwrangler",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Bring your CatWrangler projects into Codex. Every session connects itself and picks up the right project's context — its decisions, its history, its code — so you skip the setup and get to work.",
   "author": {
     "name": "CatWrangler"
@@ -9,7 +9,7 @@
   "repository": "https://github.com/CatWranglerAI/plugins",
   "keywords": ["catwrangler", "decisions", "mcp", "context"],
   "skills": "./skills-codex/",
-  "mcpServers": "./.mcp.json",
+  "mcpServers": "./codex-mcp.json",
   "hooks": "./hooks.json",
   "interface": {
     "displayName": "CatWrangler",
