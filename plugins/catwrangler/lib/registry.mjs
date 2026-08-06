@@ -81,6 +81,17 @@ const isRegistryFile = (fp) => {
 };
 
 /**
+ * True only in the internal-flavored build when its governing registry sits
+ * alongside the customer's regular registry. The customer build uses that
+ * regular path itself, so it deliberately returns false there.
+ */
+export function hasCustomerRegistrySibling(found) {
+  if (!found) return false;
+  const customerPath = join(found.dir, '.catwrangler');
+  return registryPath(found.dir) !== customerPath && isRegistryFile(customerPath);
+}
+
+/**
  * Find the `.catwrangler` that governs a directory.
  *
  * Sessions do not start at the top of a repo. Someone working in `repo/src/api`

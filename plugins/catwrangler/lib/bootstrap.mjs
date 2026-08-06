@@ -33,7 +33,7 @@
  * workspace look unconfigured from any subdirectory of it.
  */
 
-import { findRegistry, readRegistryFile } from './registry.mjs';
+import { findRegistry, hasCustomerRegistrySibling, readRegistryFile } from './registry.mjs';
 import {
   SESSION_PROTOCOL,
   SUBAGENT_OPENING,
@@ -70,6 +70,34 @@ const INIT_SESSION_LINE =
   'This is a CatWrangler workspace. Before doing ANY work on the project, call the `catwrangler` MCP server\'s `init_session` tool. It returns your full working protocol and context — follow what it returns.';
 const PROJECT_ID_LINE =
   'When the project you connect to carries an `id` below, pass that id to init_session as its `project_id` parameter — it pins the exact project. Only fall back to the slug when no id is recorded.';
+
+/**
+ * The internal build uses this only when a same-directory customer registry is
+ * present. That other plugin supplies the standing protocol; repeating it here
+ * obscures the one fact this second hook needs to add: which projects are
+ * internal and therefore belong on the internal MCP server.
+ */
+function buildInternalDisambiguation(projects) {
+  const lines = [
+    'A customer .catwrangler registry is also present in this workspace. The customer plugin supplies the shared startup protocol; this internal plugin contributes only internal project routing.',
+  ];
+
+  if (projects.length === 0) {
+    lines.push('The internal registry names no projects. Call the `catwrangler` MCP server\'s `init_session` to retrieve the internal projects you can reach.');
+  } else {
+    lines.push('Internal projects:');
+    for (const p of projects) {
+      const name = p.name ? ` (${p.name})` : '';
+      const id = p.id ? ` [id ${p.id}]` : '';
+      const desc = p.description ? ` — ${p.description}` : '';
+      lines.push(`  • ${p.slug}${name}${id}${desc}`);
+      if (p.use_when) lines.push(`      use when: ${p.use_when}`);
+    }
+    lines.push('For work that belongs to an internal project, call the `catwrangler` MCP server\'s `init_session` with the matching `project_id`. Do not use a customer-lane session for internal work.');
+  }
+
+  return { additionalContext: lines.join('\\n') };
+}
 
 /**
  * Build the bootstrap output for a session.
@@ -113,6 +141,8 @@ export function buildBootstrap({ cwd, source }) {
 
   const projects = Array.isArray(manifest.projects) ? manifest.projects : [];
   const server = manifest.server || manifest.mcp_url || 'the CatWrangler MCP server';
+
+  if (hasCustomerRegistrySibling(found)) return buildInternalDisambiguation(projects);
 
   // Build the model-facing instruction. Selection is stated, never inferred:
   // one project → connect to it; several → pick by task or ask; unknown → ask
@@ -259,6 +289,8 @@ export function buildSubagentBootstrap({ cwd }) {
   }
 
   const projects = Array.isArray(manifest.projects) ? manifest.projects : [];
+
+  if (hasCustomerRegistrySibling(found)) return buildInternalDisambiguation(projects);
 
   const lines = [];
   lines.push(SUBAGENT_OPENING);
