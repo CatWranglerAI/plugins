@@ -1,6 +1,6 @@
 {
   "name": "catwrangler",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Bring your CatWrangler projects into Codex. Every session connects itself and picks up the right project's context — its decisions, its history, its code — so you skip the setup and get to work.",
   "author": {
     "name": "CatWrangler"
@@ -15,6 +15,9 @@
     "displayName": "CatWrangler",
     "shortDescription": "Your CatWrangler projects — decisions, tasks, and code — in every Codex session.",
     "developerName": "CatWrangler",
-    "websiteUrl": "https://catwrangler.ai"
+    "websiteUrl": "https://catwrangler.ai",
+    "composerIcon": "./assets/logo.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png"
   }
 }
