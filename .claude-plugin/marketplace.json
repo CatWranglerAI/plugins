@@ -10,7 +10,7 @@
       "name": "catwrangler",
       "source": "./plugins/catwrangler",
       "description": "Your CatWrangler projects — decisions, tasks, and code — in every Claude Code session.",
-      "version": "0.7.3",
+      "version": "0.7.4",
       "author": {
         "name": "CatWrangler"
       }

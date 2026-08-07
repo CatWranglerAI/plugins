@@ -1,11 +1,12 @@
 {
   "name": "catwrangler",
   "displayName": "CatWrangler",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Bring your CatWrangler projects into Claude Code. Every session connects itself and picks up the right project's context — its decisions, its history, its code — so you skip the setup and get to work.",
   "author": {
     "name": "CatWrangler"
   },
   "homepage": "https://catwrangler.ai",
+  "skills": ["./skills"],
   "mcpServers": "./mcp-config.json"
 }

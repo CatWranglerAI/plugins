@@ -1,6 +1,6 @@
 {
   "name": "catwrangler",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Bring your CatWrangler projects into Codex. Every session connects itself and picks up the right project's context — its decisions, its history, its code — so you skip the setup and get to work.",
   "author": {
     "name": "CatWrangler"
