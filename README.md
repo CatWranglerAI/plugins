@@ -21,14 +21,17 @@ there picks the project up on its own from then on.
 
 ## Layout
 
-One plugin root, shared by **both hosts** — one tree, two manifests. The
-marketplace manifest sits above it at the repo root, which is where a host looks
-for it; the plugin it lists is the directory beneath:
+One plugin package, shared by **both hosts** — one tree, two manifests.
+Marketplace discovery is host-specific: Claude Code reads
+`.claude-plugin/marketplace.json`, while Codex reads
+`.agents/plugins/marketplace.json`. Both sit at the repo root and point to the
+same plugin directory beneath:
 
 ```
 github.com/CatWranglerAI/plugins          ← repo root
 │
-├── .claude-plugin/marketplace.json       ← lists the plugin (source "./plugins/catwrangler")
+├── .claude-plugin/marketplace.json       ← Claude Code marketplace
+├── .agents/plugins/marketplace.json       ← Codex marketplace
 ├── README.md
 │
 └── plugins/catwrangler/                  ← THE PLUGIN — one root, both hosts
@@ -124,8 +127,15 @@ unaccepted hook rather than prompting, so accept it in an interactive session.
 /reload-plugins
 ```
 
-**Codex:** `/plugins`, then install from the marketplace. Start a new session
-before using the bundled skill or tools — Codex does not hot-reload plugins.
+**Codex:**
+
+```shell
+codex plugin marketplace add CatWranglerAI/plugins
+codex plugin add catwrangler@catwrangler
+```
+
+Start a new session before using the bundled skill or tools — Codex does not
+hot-reload plugins.
 
 Then drop a `.catwrangler` file (copy `plugins/catwrangler/examples/sample.catwrangler`) into a test
 directory, start a session there, and the hook fires.

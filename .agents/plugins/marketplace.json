@@ -1,0 +1,20 @@
+{
+  "name": "catwrangler",
+  "interface": {
+    "displayName": "CatWrangler"
+  },
+  "plugins": [
+    {
+      "name": "catwrangler",
+      "source": {
+        "source": "local",
+        "path": "./plugins/catwrangler"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
