@@ -39,7 +39,7 @@
  * degrading.
  */
 export const AGENT_ID_RULE =
-  'init_session returns an `agent_id`. Remember it, and include it as `_agent_id: "<agent_id>"` in the body of EVERY subsequent call to this server — calls without it are rejected. Each CatWrangler instance you connect to issues its OWN agent_id; use the matching one per server and never reuse one instance\'s agent_id on another. After an AUTH_REQUIRED error or a reconnect, call init_session with `reclaim_agent_id: "<agent_id>"` to recover without losing your branch or work — do not re-init without it.';
+  'init_session returns an `agent_id`. Remember it, and include it as `_agent_id: "<agent_id>"` in the body of EVERY subsequent call to this server — calls without it are rejected. Each CatWrangler instance you connect to issues its OWN agent_id; use the matching one per server and never reuse one instance\'s agent_id on another. After an AUTH_REQUIRED error or a reconnect, call init_session with `reclaim_agent_id: "<agent_id>"` to recover without losing your branch or work — do not re-init without it. If CatWrangler MCP reports terminal OAuth expiry (such as `credential_expired` or `invalid_grant`) after normal reclaim cannot recover it, invoke this plugin\'s reauth skill. Never invoke it at session start or for a transient or ordinary AUTH_REQUIRED error.';
 
 /**
  * Where the code is. The rule an unbriefed agent breaks first and most quietly:
