@@ -67,7 +67,7 @@ const NUDGE_SOURCES = new Set(['startup', 'resume', 'fork']);
  * rather than because it is shared.
  */
 const INIT_SESSION_LINE =
-  'This is a CatWrangler workspace. Before doing ANY work on the project, call the `catwrangler` MCP server\'s `init_session` tool. It returns your full working protocol and context — follow what it returns.';
+  'This is a CatWrangler workspace. Before doing ANY work on the project, call the `catwrangler` MCP server\'s `init_session` tool ONCE for the project you are working in. It returns your full working protocol and context — follow what it returns.';
 const PROJECT_ID_LINE =
   'When the project you connect to carries an `id` below, pass that id to init_session as its `project_id` parameter — it pins the exact project. Only fall back to the slug when no id is recorded.';
 
