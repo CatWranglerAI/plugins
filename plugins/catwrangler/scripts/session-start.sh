@@ -18,14 +18,14 @@
 # Requires a POSIX shell — macOS, Linux, WSL, or Windows with Git for Windows
 # (Claude Code runs hooks through Git Bash there).
 #
-# Shared by every host AND by both hook events. $1 names the Node hook adapter to
-# run and $2 the hook event it serves, both defaulting to the Claude Code
-# SessionStart case so an existing hooks.json entry keeps working unchanged:
+# Shared by every host AND by both hook events. $1 is the explicit host, $2
+# names the Node hook adapter, and $3 names the hook event. The defaults keep
+# hand-run Claude checks concise, while shipped hook configs pass all three:
 #
-#   sh session-start.sh                                            → session-start.mjs (Claude Code)
-#   sh session-start.sh session-start-codex.mjs                    → the Codex adapter
-#   sh session-start.sh subagent-start.mjs       SubagentStart     → Claude Code, sub-agent spawn
-#   sh session-start.sh subagent-start-codex.mjs SubagentStart     → Codex, sub-agent spawn
+#   sh session-start.sh claude session-start.mjs       SessionStart
+#   sh session-start.sh codex  session-start-codex.mjs SessionStart
+#   sh session-start.sh claude subagent-start.mjs       SubagentStart
+#   sh session-start.sh codex  subagent-start-codex.mjs SubagentStart
 #
 # The event name is not cosmetic. Codex pins hookEventName to a per-event `const`
 # in its output schema, so a fallback below that echoed SessionStart into a
@@ -33,10 +33,12 @@
 # rejection reads as the same opaque parse error, on the path that only runs when
 # something is already broken.
 #
-# Only the adapter differs per host; every notice below is host-neutral.
+# Runtime selection and recovery text are host-aware; adapter output stays equivalent.
 
 set -u
-EVENT="${2:-SessionStart}"
+HOST="${1:-claude}"
+ADAPTER="${2:-session-start.mjs}"
+EVENT="${3:-SessionStart}"
 
 # Prefer an injected plugin root; hooks resolve relative paths against the
 # process working directory, which is the session's cwd, not the plugin's.
@@ -55,7 +57,8 @@ elif [ -n "${PLUGIN_ROOT:-}" ]; then
 else
   DIR=$(dirname "$0")
 fi
-HOOK="$DIR/${1:-session-start.mjs}"
+HOOK="$DIR/$ADAPTER"
+RESOLVER="$DIR/resolve-node.sh"
 
 # Emit a hook JSON payload. $1 = user notice, $2 = model context. Both are
 # plain prose here (no quotes/backslashes), so literal interpolation is safe.
@@ -81,12 +84,22 @@ emit() {
   exit 0
 }
 
-NO_NODE_USER='\n\nCatWrangler plugin: Node.js was not found on PATH, so the session bootstrap did not run.\n  - Install Node 18+ (https://nodejs.org, or: brew install node / nvm install --lts), then start a new session.\n  - Until then, connect manually by calling the catwrangler MCP server init_session tool.'
-NO_NODE_MODEL="The CatWrangler $EVENT hook could not run because Node.js is not installed on PATH, so the usual workspace bootstrap (project menu + init_session instruction) was skipped. Tell the user Node 18+ is required for the CatWrangler plugin hook. You can still work: call the catwrangler MCP server init_session tool yourself and follow the protocol it returns."
-
-if ! command -v node >/dev/null 2>&1; then
-  emit "$NO_NODE_USER" "$NO_NODE_MODEL"
+if [ ! -f "$RESOLVER" ]; then
+  emit '\n\nCatWrangler plugin: the Node.js runtime resolver is missing from the plugin directory.\n  - The session bootstrap did not run — reinstall the plugin.' \
+       "The CatWrangler $EVENT runtime resolver is missing, so the workspace bootstrap was skipped. Call the catwrangler MCP server init_session tool yourself and follow the protocol it returns."
 fi
+
+. "$RESOLVER"
+
+if [ "$HOST" = codex ]; then
+  NO_NODE_USER='\n\nCatWrangler plugin: no compatible Node.js 18+ runtime was available, so the session bootstrap did not run.\n  - The plugin checked working Node 18+ executables on PATH and compatible runtimes exposed by Codex Desktop.\n  - Standalone Codex CLI/IDE may require Node 18+ from https://nodejs.org, brew install node, or nvm install --lts.\n  - If Node 18+ is already installed but Codex cannot see it, make it available from the non-interactive login profile, set shell_environment_policy.inherit=core and experimental_use_profile=true in ~/.codex/config.toml, then start a new session. Do not set an explicit PATH in Codex configuration.\n  - Until then, connect manually by calling the catwrangler MCP server init_session tool.'
+  NO_NODE_MODEL="The CatWrangler $EVENT hook found no compatible Node.js 18+ runtime after checking PATH and the best-effort Codex Desktop bundled-runtime layouts. The usual workspace bootstrap was skipped. Standalone Codex CLI/IDE may require Node 18+. If a compatible Node is installed but hidden from Codex, help the user expose it through the non-interactive login profile with shell_environment_policy.inherit=core and experimental_use_profile=true; do not recommend an explicit PATH. You can still work now: call the catwrangler MCP server init_session tool yourself and follow the protocol it returns."
+else
+  NO_NODE_USER='\n\nCatWrangler plugin: no compatible Node.js 18+ runtime was found on PATH, so the session bootstrap did not run.\n  - Claude Code may require Node 18+ from https://nodejs.org, brew install node, or nvm install --lts.\n  - If Node 18+ already works in a terminal, make it available from the non-interactive login profile, then start a new session.\n  - Until then, connect manually by calling the catwrangler MCP server init_session tool.'
+  NO_NODE_MODEL="The CatWrangler $EVENT hook found no compatible Node.js 18+ runtime on PATH, so the workspace bootstrap was skipped. Tell the user Claude Code may require Node 18+ and that an installed runtime must be visible through the non-interactive login profile. You can still work now: call the catwrangler MCP server init_session tool yourself and follow the protocol it returns."
+fi
+
+NODE=$(resolve_node "$HOST") || emit "$NO_NODE_USER" "$NO_NODE_MODEL"
 
 if [ ! -f "$HOOK" ]; then
   emit '\n\nCatWrangler plugin: the session bootstrap script is missing from the plugin directory.\n  - The session bootstrap did not run — reinstall the plugin.' \
@@ -106,7 +119,7 @@ fi
 
 # Hand stdin (the hook payload) straight through, capturing stdout so a failed
 # run can be reported instead of vanishing.
-OUT=$(node "$HOOK" 2>/dev/null)
+OUT=$("$NODE" "$HOOK" 2>/dev/null)
 STATUS=$?
 
 if [ "$STATUS" -ne 0 ]; then

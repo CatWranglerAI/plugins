@@ -59,16 +59,15 @@ Two things people type that are not verbs, both of which you should just handle:
 returns, so run it before anything else:
 
 ```
-node ./scripts/manage.mjs list
+sh ../../scripts/manage.sh codex list
 ```
 
-That path is relative to **this skill's own directory** — the `scripts/`
-folder sitting beside this `SKILL.md` file, which is a different directory from
-the plugin root's `scripts/`. Expand it against wherever you read this file from,
-or hand `node` the absolute path.
+The launcher path is relative to **this skill's own directory**. Expand
+it against wherever you read this file from before running the `sh` command; the
+launcher itself lives in the plugin root's `scripts/` directory.
 
 It prints one JSON object and needs no network. If it fails for any reason —
-`node: command not found`, a non-zero exit, unparseable output — **stop and tell
+no compatible runtime, a non-zero exit, unparseable output — **stop and tell
 the user**, per "When manage.mjs fails" below. Do not carry on as though the
 workspace were empty: an unreadable registry and an empty one are different
 answers, and only `"exists": false` means the latter.
@@ -127,7 +126,7 @@ There is no separate "connect" step; this verb is the whole of it, in three part
 
 3. **Record it**, so this is permanent and no future session has to repeat it:
    ```
-   node ./scripts/manage.mjs add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>" --web-url "<web_url>" --use-when "<routing note>"
+   node sh ../../scripts/manage.sh codex add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>" --web-url "<web_url>" --use-when "<routing note>"
    ```
    Carry `--id`, `--org`, `--name`, `--desc`, and `--web-url` whenever
    `list_projects` gave you them. `--id` is what lets the *next* session open the
@@ -171,7 +170,7 @@ available**. It edits `.catwrangler` and nothing else. It does not end a live
 session, and it does not touch the user's access — the project goes back to
 available, not away. Say that, so nobody reads it as losing something.
 ```
-node ./scripts/manage.mjs remove --slug "<slug>"
+node sh ../../scripts/manage.sh codex remove --slug "<slug>"
 ```
 If that slug is connected under more than one org the script refuses and names the
 orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
@@ -218,7 +217,7 @@ Anything longer is a second CLAUDE.md that nobody is curating.
 the racer", "leaderboard work goes to the platform" — that sentence is a better
 `use_when` than anything you would have drafted. Record it:
 ```
-node ./scripts/manage.mjs add --slug "<slug>" --use-when "<the corrected rule>"
+node sh ../../scripts/manage.sh codex add --slug "<slug>" --use-when "<the corrected rule>"
 ```
 `add` updates in place, and passing only `--slug` and `--use-when` leaves every
 other field alone. This is the whole point of the field: a correction that is not
@@ -342,6 +341,36 @@ connected half + add/remove, which all work without it. Do **not** present
 an empty list as "you have no projects" — a failed lookup and genuinely having none are
 different answers, and only the tool's own empty `projects: []` means the latter.
 
+## Activity capture
+
+A connected workspace feeds the project's activity view: which CatWrangler
+tools sessions here called and — at the default level — the assistant's own
+commentary around those calls, so the user can follow the work in the agent's
+voice. Capture is scoped to CatWrangler activity: conversation that never
+touches a CatWrangler tool is not collected, and a directory with no
+`.catwrangler` at all is never captured.
+
+Consent is the `activityCapture` field in `.catwrangler`, at three levels:
+
+- **`full`** — tool calls plus the assistant's commentary around them. This is
+  the default: inside a connected workspace, no setting at all means `full`.
+- **`toolCalls`** — tool calls only, no assistant text.
+- **`off`** — nothing is captured or written for this workspace.
+
+A top-level `activityCapture` sets the workspace's base; one on a project
+entry overrides it in either direction. Change it with the manage script —
+consent edits are registry edits, and hand-editing stays forbidden:
+
+```
+sh ../../scripts/manage.sh codex capture --level off
+sh ../../scripts/manage.sh codex capture --level toolCalls --slug "<slug>"
+```
+
+The first form sets the workspace default; `--slug` (plus `--org` when the
+slug is connected under more than one org) sets one project's override. When a
+user asks whether their sessions are recorded, or how to turn that off, this
+is the answer: say what level is in effect and offer the command.
+
 ## Rules
 
 - `.catwrangler` is a convenience cache, not the source of truth — the server is
@@ -352,18 +381,22 @@ different answers, and only the tool's own empty `projects: []` means the latter
 - Never guess a connection target. If several connected/available projects
   plausibly match the user's task, ask which.
 
-## When manage.mjs fails
+## When workspace management fails
 
-A failed `manage.mjs` call is **never** something to swallow. The user ran this
+A failed launcher call is **never** something to swallow. The user ran this
 command and is waiting on an answer; silence reads to them as the plugin being
 broken with no explanation. Say what failed and what they can do, every time:
 
-- **`node: command not found`** — the plugin requires Node 18+ on `PATH`. Point
-  them at https://nodejs.org, `brew install node`, or `nvm install --lts`, and
-  tell them the same gap disables the session-start hook, so this is worth fixing
-  once rather than working around. You can still open a project for them in the
-  meantime — `init_session` is an MCP call and needs no Node — it just will not
-  stick past this session.
+- **No compatible Node.js runtime** — report the launcher's text. It already
+  distinguishes the hosts: Codex Desktop automatically tries a compatible bundled
+  runtime after PATH, while standalone Codex CLI/IDE and Claude Code may require
+  Node 18+ from https://nodejs.org, `brew install node`, or `nvm install --lts`.
+  If Node 18+ is installed but the host cannot see it, make that installation
+  visible from the non-interactive login profile. For Codex, configure
+  `shell_environment_policy.inherit=core` with
+  `experimental_use_profile=true`; never recommend an explicit PATH. 
+  You can still open a project in the meantime — `init_session` is an MCP call
+  and needs no Node — but the workspace change will not persist.
 - **`<path> is not valid JSON`** — the file is corrupt, so this workspace cannot
   say what it is connected to. The error names the file; show them that path and
   offer to rebuild it by connecting their projects again. Read the path before you
@@ -373,9 +406,10 @@ broken with no explanation. Say what failed and what they can do, every time:
 - **Anything else** — report the error text verbatim and stop.
 
 Recovering the answer another way is welcome as long as you still report the
-problem — if you can find a working `node` at an absolute path, use it and say
-what you did. What is forbidden is the silent workaround, and one specific loud
-one: never hand-edit `.catwrangler`. It is the file `manage.mjs` exists to own,
+problem. Do not bypass the launcher with a hand-found executable: fix runtime
+visibility and rerun it so workspace management and hooks stay on the same path.
+What is forbidden is the silent workaround, and one specific loud one: never
+hand-edit `.catwrangler`. It is the file `manage.mjs` exists to own,
 and writing it by hand while the script is failing is how a workspace ends up
 with a registry no version of the plugin agrees with.
 

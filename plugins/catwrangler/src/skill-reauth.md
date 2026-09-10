@@ -25,4 +25,4 @@ Resolve this host's CLI executable on `PATH`; do not assume a hard-coded install
 ```
 {{/codex}}
 
-The command may open a browser. The agent starts the command itself; ask the human only to complete the browser sign-in. Once the command succeeds, retry the failed MCP operation. If login fails or the browser step is not completed, report the failure and do not create a new CatWrangler identity as a workaround.
+The command may open a browser. The agent starts the command itself; ask the human only to complete the browser sign-in. The login requires an interactive terminal: if the command fails immediately with something like `stdin isn't a terminal`, this harness has no TTY — give the human the exact command to run in their own terminal, and continue once they report it succeeded. Once the command succeeds, retry the failed MCP operation. If login fails or the browser step is not completed, report the failure and do not create a new CatWrangler identity as a workaround.

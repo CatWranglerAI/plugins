@@ -119,6 +119,22 @@ unaccepted hook rather than prompting, so accept it in an interactive session.
 
 ## Install
 
+Codex Desktop users do not need to install Node before installing the plugin. The
+plugin prefers a working Node 18+ from `PATH`, then automatically tries a
+compatible runtime bundled with Codex Desktop when the host exposes a known
+layout. Bundled-runtime discovery is best-effort because Codex does not publish a
+stable Node executable variable.
+
+Standalone Codex CLI/IDE and Claude Code may require Node 18+ on `PATH`. For those
+hosts, verify it in a terminal:
+
+```shell
+node --version
+```
+
+If that command is missing or reports an older version, install a current LTS from
+[Node.js](https://nodejs.org), `brew install node`, or `nvm install --lts`.
+
 **Claude Code:**
 
 ```shell
@@ -135,7 +151,32 @@ codex plugin add catwrangler@catwrangler
 ```
 
 Start a new session before using the bundled skill or tools — Codex does not
-hot-reload plugins.
+hot-reload plugins, and hook subprocesses use the environment captured for that
+session.
+
+If a new session reports no compatible runtime and Node 18+ is already installed,
+check whether the non-interactive login profile can find it too:
+
+```shell
+"$SHELL" -lc 'command -v node && node --version'
+```
+
+If that fails, update the login-profile file for your shell so it initializes
+Homebrew, NVM, or the Node manager you already use. Keep that profile as the
+source of truth; do not copy its current `PATH` value into Codex configuration.
+Then configure Codex to inherit its core environment from the user profile:
+
+```toml
+[shell_environment_policy]
+inherit = "core"
+experimental_use_profile = true
+```
+
+Add those keys to an existing `[shell_environment_policy]` table rather than
+creating a duplicate, then start another new session. If your policy already has
+one or more `"include"` filters, include `PATH` too; an include filter preserves
+an inherited variable but cannot add directories that were absent from it. See
+the [Codex shell environment policy documentation](https://learn.chatgpt.com/docs/config-file/config-advanced#shell-environment-policy).
 
 Then drop a `.catwrangler` file (copy `plugins/catwrangler/examples/sample.catwrangler`) into a test
 directory, start a session there, and the hook fires.
@@ -144,25 +185,27 @@ Test any hook directly without installing:
 
 ```shell
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
-  | sh plugins/catwrangler/scripts/session-start.sh                        # Claude Code
+  | sh plugins/catwrangler/scripts/session-start.sh claude session-start.mjs SessionStart
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
-  | sh plugins/catwrangler/scripts/session-start.sh session-start-codex.mjs   # Codex
+  | sh plugins/catwrangler/scripts/session-start.sh codex session-start-codex.mjs SessionStart
 
 printf '{"cwd":"<dir-with-.catwrangler>","agent_id":"a-1","agent_type":"general-purpose"}' \
-  | sh plugins/catwrangler/scripts/session-start.sh subagent-start.mjs       SubagentStart   # Claude Code
+  | sh plugins/catwrangler/scripts/session-start.sh claude subagent-start.mjs SubagentStart
 printf '{"cwd":"<dir-with-.catwrangler>","agent_id":"a-1","agent_type":"general-purpose"}' \
-  | sh plugins/catwrangler/scripts/session-start.sh subagent-start-codex.mjs SubagentStart   # Codex
+  | sh plugins/catwrangler/scripts/session-start.sh codex subagent-start-codex.mjs SubagentStart
 ```
 
 Point the sub-agent ones at a directory with no `.catwrangler` and they must
 print exactly `{}` — the hook is installed user-global, so it runs for every
 sub-agent on the machine and has to be silent outside a workspace.
 
-Simulate a machine without Node (should print an install notice, exit 0):
+Simulate a host with no compatible PATH or bundled runtime (should print the
+fallback notice and exit 0):
 
 ```shell
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
-  | env PATH=/usr/bin:/bin sh plugins/catwrangler/scripts/session-start.sh
+  | env PATH= CATWRANGLER_PLUGIN_ROOT="$(pwd)/plugins/catwrangler" \
+      /bin/sh plugins/catwrangler/scripts/session-start.sh codex session-start-codex.mjs SessionStart
 ```
 
 ## The `.catwrangler` file
@@ -225,7 +268,8 @@ environment.
 
 ## How the hooks behave
 
-Two events, one wrapper, one `lib/`. Both fire **before MCP servers connect**, so
+Two events, one wrapper, one `lib/`. Runtime selection is host-aware, but the
+hook behavior and output contract remain equivalent. Both fire **before MCP servers connect**, so
 neither hook inspects auth/connection state — they only *inject the instruction*
 and let the model act once MCP is up. Neither ever starts a turn: the context
 attaches to whatever the user (or the parent) actually asked for.
@@ -240,7 +284,7 @@ attaches to whatever the user (or the parent) actually asked for.
 | `.catwrangler` in a parent, or in `~` | Same as above — it governs this directory. The notice names the file, since it is not where the user is standing |
 | No `.catwrangler` anywhere above | One-line notice: not connected here, run `/catwrangler:connect`. Only on real session starts, not `clear`/`compact`. No model instruction (nothing to connect to) |
 | `.catwrangler` malformed | User-visible notice naming the file, no crash |
-| Node.js not on `PATH` | User-visible "install Node 18+" notice + a model-facing note that the bootstrap was skipped; session continues |
+| No working Node 18+ on `PATH` | Codex Desktop tries a compatible bundled runtime; other hosts, or an unavailable bundle, get an actionable notice + model-facing fallback; session continues |
 | Node present but the hook errors | Same shape, pointing at `node --version` |
 
 ### SubagentStart
@@ -277,9 +321,13 @@ register your own, do not merge to trunk."
 
 ## Requirements
 
-- **Node.js 18+** on `PATH`. The hook and the `/catwrangler:connect` skill are
-  Node scripts. Claude Code itself no longer ships Node, so it may be missing —
-  if it is, both tell you so and the session continues without the project menu.
+- **A compatible Node.js 18+ runtime.** The hook and
+  `/catwrangler:connect` skill prefer a validated executable from `PATH`. Codex
+  Desktop then automatically tries compatible bundled-runtime layouts; standalone
+  Codex CLI/IDE and Claude Code may require Node 18+ to be installed. If an
+  installed runtime is absent from the host's captured environment, use the
+  login-profile inheritance troubleshooting in Install above — never configure an
+  explicit PATH.
 - **A POSIX shell.** macOS, Linux, and WSL have one. On Windows, install
   [Git for Windows](https://git-scm.com/downloads/win); Claude Code uses Git Bash
   for hooks and for the Bash tool this plugin's skill needs.

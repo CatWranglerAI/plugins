@@ -2,11 +2,11 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume",
+        "matcher": "startup|resume|compact",
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\" session-start-codex.mjs",
+            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\" codex session-start-codex.mjs SessionStart",
             "statusMessage": "Connecting to CatWrangler",
             "additionalContextLimit": 8000
           }
@@ -19,9 +19,31 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\" subagent-start-codex.mjs SubagentStart",
+            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\" codex subagent-start-codex.mjs SubagentStart",
             "statusMessage": "Connecting sub-agent to CatWrangler",
             "additionalContextLimit": 8000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*catwrangler.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/capture-event.sh\" codex PostToolUse"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/capture-event.sh\" codex Stop"
           }
         ]
       }

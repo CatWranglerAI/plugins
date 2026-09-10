@@ -71,6 +71,19 @@ const INIT_SESSION_LINE =
 const PROJECT_ID_LINE =
   'When the project you connect to carries an `id` below, pass that id to init_session as its `project_id` parameter — it pins the exact project. Only fall back to the slug when no id is recorded.';
 
+// cw:d-3939: exact post-compaction workframe. The hook has no credential and
+// deliberately does not fetch or cache Mission state; the already-authenticated
+// agent retrieves the live pulse from the existing HTTP-only Mission service.
+const MISSION_COMPACT_CONTEXT = [
+  'CatWrangler Mission continuity checkpoint: compaction just occurred.',
+  'Do not call init_session again.',
+  'If this exact authenticated agent session is joined to a Mission, fetch GET /api/missions/current?detail=pulse through that project\'s existing Mission HTTP service before consequential work.',
+  'Re-ground on the pulse\'s home project, current direction, constraints, open work, live handoff, and linked-project identities.',
+  'A cross-project Mission has one authoritative home record; other projects carry backlinks, never duplicate Mission state.',
+  'If no Mission is active, continue normally.',
+  'Do not create a helper identity, separate credential, local Mission cache, or Mission MCP tool.',
+].join(' ');
+
 /**
  * The internal build uses this only when a same-directory customer registry is
  * present. That other plugin supplies the standing protocol; repeating it here
@@ -142,7 +155,13 @@ export function buildBootstrap({ cwd, source }) {
   const projects = Array.isArray(manifest.projects) ? manifest.projects : [];
   const server = manifest.server || manifest.mcp_url || 'the CatWrangler MCP server';
 
-  if (hasCustomerRegistrySibling(found)) return buildInternalDisambiguation(projects);
+  if (hasCustomerRegistrySibling(found)) {
+    // The customer plugin owns shared Mission continuity when both lanes are
+    // present, so an internal sibling never injects a duplicate compact pulse.
+    return src === 'compact' ? null : buildInternalDisambiguation(projects);
+  }
+
+  if (src === 'compact') return { additionalContext: MISSION_COMPACT_CONTEXT };
 
   // Build the model-facing instruction. Selection is stated, never inferred:
   // one project → connect to it; several → pick by task or ask; unknown → ask
