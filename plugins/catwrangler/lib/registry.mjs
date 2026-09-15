@@ -312,59 +312,6 @@ export function registerProject(dir, opts) {
   return { ok: true, action, slug, ...(org ? { org_slug: org } : {}), ambiguous, path: registryPath(dir), projects: m.projects };
 }
 
-/**
- * Set the activity-capture consent level — the workspace top-level default when
- * no slug is given, else that project's override. Levels: full | toolCalls |
- * off (mirrors CAPTURE_LEVELS in lib/activity/config.mjs, which cannot be
- * imported here without inverting the config→registry dependency). Inside a
- * governed workspace, absent settings mean "full" (d-3782), so "off" is the
- * explicit opt-out this exists to record. Local consent only — the instance
- * runtime flag remains the server-side outer gate.
- */
-export function setCaptureLevel(dir, opts) {
-  const { level, slug, org } = opts;
-  if (!level || !['full', 'toolCalls', 'off'].includes(level)) {
-    fail('capture requires --level full | toolCalls | off');
-  }
-
-  const target = resolveWriteDir(dir);
-  const m = readRegistry(target);
-  if (!m) {
-    // Same posture as remove: writes refuse to touch the home registry from
-    // elsewhere, and "not a workspace" is a different answer from "no consent".
-    const found = findRegistry(dir);
-    if (found) {
-      fail(
-        'no .catwrangler in ' + target + ' — the projects in scope here come from ' + found.path +
-          ' (your home registry). Run this from ' + found.dir + ' to change capture there.'
-      );
-    }
-    fail('no .catwrangler in ' + target);
-  }
-
-  if (slug) {
-    const matches = projectsOf(m).filter((p) => p && p.slug === slug);
-    if (!org && matches.length > 1) {
-      fail(
-        `slug "${slug}" is registered in ${matches.length} orgs (` +
-          matches.map((p) => p.org_slug || '(no org)').join(', ') +
-          ') — pass --org to say which'
-      );
-    }
-    const entry = matches.find((p) => (org ? p.org_slug === org : true));
-    if (!entry) fail(`slug "${slug}" is not connected here`);
-    entry.activityCapture = level;
-  } else {
-    m.activityCapture = level;
-  }
-  writeRegistry(target, m);
-  return {
-    ok: true, action: 'capture', level,
-    ...(slug ? { slug } : {}), ...(org ? { org_slug: org } : {}),
-    path: registryPath(target),
-  };
-}
-
 /** Unregister a project. Local menu only — never touches sessions or server access. */
 export function unregisterProject(dir, opts) {
   const { slug, org } = opts;

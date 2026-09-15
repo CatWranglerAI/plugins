@@ -13,12 +13,6 @@
  *   add    --slug S [--id I] [--org O] [--name N] [--desc D] [--use-when W]
  *                     [--web-url X] [--server U] [--mcp-url M]
  *   remove --slug S [--org O]
- *   capture --level full|toolCalls|off [--slug S [--org O]]
- *
- * `capture` records activity-capture consent (d-3782): the workspace top-level
- * default without --slug, that project's override with it. Inside a governed
- * workspace, absent settings mean "full", so `--level off` is the opt-out this
- * verb exists to make settable without hand-editing the registry.
  *
  * --id carries the server-assigned project id (the `id` field from
  * list_projects, shaped like `p-841207`). It is stored verbatim so `connect` can
@@ -55,7 +49,7 @@
  * Exit 0 with { ok: true } on success; exit 1 with { ok: false, error } on failure.
  */
 
-import { listRegistered, registerProject, unregisterProject, setCaptureLevel, RegistryError } from './registry.mjs';
+import { listRegistered, registerProject, unregisterProject, RegistryError } from './registry.mjs';
 
 function parseArgs(argv) {
   const [cmd, ...rest] = argv;
@@ -116,11 +110,7 @@ export function runManageCli(argv) {
       return out(unregisterProject(dir, { slug: val(opts, 'slug'), org: val(opts, 'org') }));
     }
 
-    if (cmd === 'capture') {
-      return out(setCaptureLevel(dir, { level: val(opts, 'level'), slug: val(opts, 'slug'), org: val(opts, 'org') }));
-    }
-
-    return out({ ok: false, error: 'unknown command: ' + (cmd || '(none)') + ' — use list | add | remove | capture' });
+    return out({ ok: false, error: 'unknown command: ' + (cmd || '(none)') + ' — use list | add | remove' });
   } catch (e) {
     if (e instanceof RegistryError) return out({ ok: false, error: e.message });
     return out({ ok: false, error: 'unexpected: ' + (e && e.message ? e.message : String(e)) });

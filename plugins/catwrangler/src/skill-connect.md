@@ -343,36 +343,6 @@ connected half + add/remove, which all work without it. Do **not** present
 an empty list as "you have no projects" — a failed lookup and genuinely having none are
 different answers, and only the tool's own empty `projects: []` means the latter.
 
-## Activity capture
-
-A connected workspace feeds the project's activity view: which CatWrangler
-tools sessions here called and — at the default level — the assistant's own
-commentary around those calls, so the user can follow the work in the agent's
-voice. Capture is scoped to CatWrangler activity: conversation that never
-touches a CatWrangler tool is not collected, and a directory with no
-`.catwrangler` at all is never captured.
-
-Consent is the `activityCapture` field in `.catwrangler`, at three levels:
-
-- **`full`** — tool calls plus the assistant's commentary around them. This is
-  the default: inside a connected workspace, no setting at all means `full`.
-- **`toolCalls`** — tool calls only, no assistant text.
-- **`off`** — nothing is captured or written for this workspace.
-
-A top-level `activityCapture` sets the workspace's base; one on a project
-entry overrides it in either direction. Change it with the manage script —
-consent edits are registry edits, and hand-editing stays forbidden:
-
-```
-{{MANAGE}} capture --level off
-{{MANAGE}} capture --level toolCalls --slug "<slug>"
-```
-
-The first form sets the workspace default; `--slug` (plus `--org` when the
-slug is connected under more than one org) sets one project's override. When a
-user asks whether their sessions are recorded, or how to turn that off, this
-is the answer: say what level is in effect and offer the command.
-
 ## Rules
 
 - `.catwrangler` is a convenience cache, not the source of truth — the server is
