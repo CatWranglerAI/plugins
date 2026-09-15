@@ -7,6 +7,7 @@
           {
             "type": "command",
             "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\" codex session-start-codex.mjs SessionStart",
+            "commandWindows": "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand JAByAG8AbwB0ACAAPQAgACQAZQBuAHYAOgBQAEwAVQBHAEkATgBfAFIATwBPAFQACgBpAGYAIAAoAC0AbgBvAHQAIAAkAHIAbwBvAHQAKQAgAHsAIAAkAHIAbwBvAHQAIAA9ACAAJABlAG4AdgA6AEMATABBAFUARABFAF8AUABMAFUARwBJAE4AXwBSAE8ATwBUACAAfQAKACYAIAAoAEoAbwBpAG4ALQBQAGEAdABoACAAJAByAG8AbwB0ACAAJwBzAGMAcgBpAHAAdABzAFwAcwBlAHMAcwBpAG8AbgAtAHMAdABhAHIAdAAuAHAAcwAxACcAKQAgAGMAbwBkAGUAeAAgAHMAZQBzAHMAaQBvAG4ALQBzAHQAYQByAHQALQBjAG8AZABlAHgALgBtAGoAcwAgAFMAZQBzAHMAaQBvAG4AUwB0AGEAcgB0AA==",
             "statusMessage": "Connecting to CatWrangler",
             "additionalContextLimit": 8000
           }
@@ -20,6 +21,7 @@
           {
             "type": "command",
             "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\" codex subagent-start-codex.mjs SubagentStart",
+            "commandWindows": "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand JAByAG8AbwB0ACAAPQAgACQAZQBuAHYAOgBQAEwAVQBHAEkATgBfAFIATwBPAFQACgBpAGYAIAAoAC0AbgBvAHQAIAAkAHIAbwBvAHQAKQAgAHsAIAAkAHIAbwBvAHQAIAA9ACAAJABlAG4AdgA6AEMATABBAFUARABFAF8AUABMAFUARwBJAE4AXwBSAE8ATwBUACAAfQAKACYAIAAoAEoAbwBpAG4ALQBQAGEAdABoACAAJAByAG8AbwB0ACAAJwBzAGMAcgBpAHAAdABzAFwAcwBlAHMAcwBpAG8AbgAtAHMAdABhAHIAdAAuAHAAcwAxACcAKQAgAGMAbwBkAGUAeAAgAHMAdQBiAGEAZwBlAG4AdAAtAHMAdABhAHIAdAAtAGMAbwBkAGUAeAAuAG0AagBzACAAUwB1AGIAYQBnAGUAbgB0AFMAdABhAHIAdAA=",
             "statusMessage": "Connecting sub-agent to CatWrangler",
             "additionalContextLimit": 8000
           }

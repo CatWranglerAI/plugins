@@ -44,8 +44,10 @@ github.com/CatWranglerAI/plugins          ← repo root
     │   ├── protocol.mjs                  ← the rules EVERY path delivers
     │   └── hook.mjs                      ← hook stdin/stdout contract
     ├── src/skill-connect.md              ← the ONE source for both SKILL.md files
-    ├── scripts/session-start.sh          ← wrapper: reports a missing/broken Node
-    │                                       (shared by both hook events; $2 = event)
+    ├── scripts/session-start.sh          ← POSIX hook wrapper; reports bad/missing Node
+    ├── scripts/session-start.ps1         ← native Windows hook wrapper; same contract
+    ├── scripts/resolve-node.{sh,ps1}     ← platform runtime resolvers
+    ├── scripts/manage.{sh,ps1}           ← platform workspace-management launchers
     ├── scripts/manage.mjs                ← alias for the skills' entry point below
     ├── examples/sample.catwrangler       ← what the /connect flow generates
     │
@@ -61,7 +63,7 @@ github.com/CatWranglerAI/plugins          ← repo root
     │   ── Codex ──
     ├── .codex-plugin/plugin.json         ← manifest (points skills/hooks below)
     ├── codex-mcp.json                    ← MCP entry, bare map, seconds timeout
-    ├── hooks.json                        ← Session/SubagentStart → session-start.sh
+    ├── hooks.json                        ← sh command + PowerShell commandWindows
     ├── scripts/session-start-codex.mjs   ← adapter (~3 lines over lib/)
     ├── scripts/subagent-start-codex.mjs  ← adapter (~3 lines over lib/)
     └── skills-codex/connect/SKILL.md     ← GENERATED from src/
@@ -119,11 +121,12 @@ unaccepted hook rather than prompting, so accept it in an interactive session.
 
 ## Install
 
-Codex Desktop users do not need to install Node before installing the plugin. The
-plugin prefers a working Node 18+ from `PATH`, then automatically tries a
-compatible runtime bundled with Codex Desktop when the host exposes a known
-layout. Bundled-runtime discovery is best-effort because Codex does not publish a
-stable Node executable variable.
+Codex Desktop users do not need to install Node or Git Bash before installing the
+plugin. On native Windows, Codex selects the plugin's PowerShell launchers through
+`commandWindows`; macOS and Linux use the POSIX launchers. Both prefer a working
+Node 18+ from `PATH`, then automatically try a compatible runtime bundled with
+Codex Desktop when the host exposes a known layout. Bundled-runtime discovery is
+best-effort because Codex does not publish a stable Node executable variable.
 
 Standalone Codex CLI/IDE and Claude Code may require Node 18+ on `PATH`. For those
 hosts, verify it in a terminal:
@@ -181,7 +184,7 @@ the [Codex shell environment policy documentation](https://learn.chatgpt.com/doc
 Then drop a `.catwrangler` file (copy `plugins/catwrangler/examples/sample.catwrangler`) into a test
 directory, start a session there, and the hook fires.
 
-Test any hook directly without installing:
+Test any hook directly without installing on macOS/Linux:
 
 ```shell
 printf '{"cwd":"<dir-with-.catwrangler>","source":"startup"}' \
@@ -193,6 +196,16 @@ printf '{"cwd":"<dir-with-.catwrangler>","agent_id":"a-1","agent_type":"general-
   | sh plugins/catwrangler/scripts/session-start.sh claude subagent-start.mjs SubagentStart
 printf '{"cwd":"<dir-with-.catwrangler>","agent_id":"a-1","agent_type":"general-purpose"}' \
   | sh plugins/catwrangler/scripts/session-start.sh codex subagent-start-codex.mjs SubagentStart
+```
+
+On native Windows, run the equivalent adapters through the shipped PowerShell
+launcher (no `sh` or Git Bash required):
+
+```powershell
+'{"cwd":"<dir-with-.catwrangler>","source":"startup"}' |
+  powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\plugins\catwrangler\scripts\session-start.ps1" codex session-start-codex.mjs SessionStart
+'{"cwd":"<dir-with-.catwrangler>","agent_id":"a-1","agent_type":"general-purpose"}' |
+  powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\plugins\catwrangler\scripts\session-start.ps1" codex subagent-start-codex.mjs SubagentStart
 ```
 
 Point the sub-agent ones at a directory with no `.catwrangler` and they must

@@ -125,7 +125,7 @@ There is no separate "connect" step; this verb is the whole of it, in three part
 
 3. **Record it**, so this is permanent and no future session has to repeat it:
    ```
-   node sh "${CLAUDE_SKILL_DIR}/../../scripts/manage.sh" claude add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>" --web-url "<web_url>" --use-when "<routing note>"
+   sh "${CLAUDE_SKILL_DIR}/../../scripts/manage.sh" claude add --slug "<slug>" --id "<id>" --org "<org_slug>" --name "<name>" --desc "<description>" --web-url "<web_url>" --use-when "<routing note>"
    ```
    Carry `--id`, `--org`, `--name`, `--desc`, and `--web-url` whenever
    `list_projects` gave you them. `--id` is what lets the *next* session open the
@@ -169,7 +169,7 @@ available**. It edits `.catwrangler` and nothing else. It does not end a live
 session, and it does not touch the user's access — the project goes back to
 available, not away. Say that, so nobody reads it as losing something.
 ```
-node sh "${CLAUDE_SKILL_DIR}/../../scripts/manage.sh" claude remove --slug "<slug>"
+sh "${CLAUDE_SKILL_DIR}/../../scripts/manage.sh" claude remove --slug "<slug>"
 ```
 If that slug is connected under more than one org the script refuses and names the
 orgs rather than guessing; re-run with `--org "<org_slug>"`. Report the result.
@@ -216,7 +216,7 @@ Anything longer is a second CLAUDE.md that nobody is curating.
 the racer", "leaderboard work goes to the platform" — that sentence is a better
 `use_when` than anything you would have drafted. Record it:
 ```
-node sh "${CLAUDE_SKILL_DIR}/../../scripts/manage.sh" claude add --slug "<slug>" --use-when "<the corrected rule>"
+sh "${CLAUDE_SKILL_DIR}/../../scripts/manage.sh" claude add --slug "<slug>" --use-when "<the corrected rule>"
 ```
 `add` updates in place, and passing only `--slug` and `--use-when` leaves every
 other field alone. This is the whole point of the field: a correction that is not
