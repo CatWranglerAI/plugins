@@ -1,12 +1,14 @@
 # Workspace-management launcher for native Windows.
 param(
   [Parameter(Position = 0)]
-  [string] $HostName
+  [string] $HostName,
+
+  [Parameter(Position = 1, ValueFromRemainingArguments = $true)]
+  [string[]] $ManageArguments
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
-$manageArguments = @($args)
 
 if ($HostName -notin @('claude', 'codex')) {
   [Console]::Error.WriteLine('CatWrangler plugin: manage.ps1 requires an explicit claude or codex host.')
@@ -37,5 +39,5 @@ if (-not (Test-Path -LiteralPath $manage -PathType Leaf)) {
   exit 1
 }
 
-& $node $manage @manageArguments
+& $node $manage @ManageArguments
 exit $LASTEXITCODE
