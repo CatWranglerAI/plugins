@@ -1,0 +1,25 @@
+#!/bin/sh
+# POSIX half of Claude's dot-sourced SessionStart dispatch basename.
+# PowerShell resolves the same relative name to session-start.ps1. The hook
+# manifest has already changed into this directory, so this file needs no
+# executable mode and no positional arguments.
+
+set -u
+
+if [ -n "${CATWRANGLER_PLUGIN_ROOT:-}" ]; then
+  SCRIPT_DIR="$CATWRANGLER_PLUGIN_ROOT/scripts"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  SCRIPT_DIR="$CLAUDE_PLUGIN_ROOT/scripts"
+else
+  SCRIPT_DIR=$PWD
+fi
+SESSION_DIR=${CLAUDE_PROJECT_DIR:-${OLDPWD:-}}
+
+# The manifest changes into the plugin directory so PowerShell can select the
+# sibling .ps1 file by relative basename. Restore the workspace before the Node
+# adapter runs; malformed or empty hook input falls back to process.cwd().
+if [ -n "$SESSION_DIR" ] && [ -d "$SESSION_DIR" ]; then
+  cd "$SESSION_DIR" 2>/dev/null || :
+fi
+
+exec sh "$SCRIPT_DIR/session-start.sh" claude session-start.mjs SessionStart
