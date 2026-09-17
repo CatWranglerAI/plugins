@@ -38,8 +38,11 @@
  * depends on getting it right, and getting it wrong fails every call rather than
  * degrading.
  */
+export const INIT_SESSION_LIFECYCLE_RULE =
+  'Make one bare init_session call per project. Never make another bare initialization on the same project. After AUTH_REQUIRED or transport reconnection, reclaim the retained identity by calling init_session with reclaim_agent_id set to that exact agent ID. Reclaim is recovery, not a new initialization.';
+
 export const AGENT_ID_RULE =
-  'init_session returns an `agent_id`. Remember it, and include it as `_agent_id: "<agent_id>"` in the body of EVERY subsequent call to this server — calls without it are rejected. Holding an agent_id means you ARE initialized: init_session is ONE call per conversation per server, and a new user turn, a new task, or context compaction is never a reason to call it again. Each CatWrangler instance you connect to issues its OWN agent_id; use the matching one per server and never reuse one instance\'s agent_id on another. The ONLY reason to re-call init_session is recovery: after an AUTH_REQUIRED error or a reconnect, call it with `reclaim_agent_id: "<agent_id>"` to recover without losing your branch or work — do not re-init without it. If CatWrangler MCP reports terminal OAuth expiry (such as `credential_expired` or `invalid_grant`) after normal reclaim cannot recover it, invoke this plugin\'s reauth skill. Never invoke it at session start or for a transient or ordinary AUTH_REQUIRED error.';
+  INIT_SESSION_LIFECYCLE_RULE + ' init_session returns an `agent_id`. Remember it, and include it as `_agent_id: "<agent_id>"` in the body of EVERY subsequent call to this server — calls without it are rejected. Holding an agent_id means you ARE initialized: a new user turn, a new task, or context compaction is never a reason for another bare initialization on that project. Each CatWrangler instance you connect to issues its OWN agent_id; use the matching one per server and never reuse one instance\'s agent_id on another. For recovery, pass `reclaim_agent_id: "<agent_id>"` to recover without losing your branch or work — do not make a bare initialization instead. If CatWrangler MCP reports terminal OAuth expiry (such as `credential_expired` or `invalid_grant`) after normal reclaim cannot recover it, invoke this plugin\'s reauth skill. Never invoke it at session start or for a transient or ordinary AUTH_REQUIRED error.';
 
 /**
  * Where the code is. The rule an unbriefed agent breaks first and most quietly:

@@ -39,6 +39,7 @@ import {
   SUBAGENT_OPENING,
   SUBAGENT_PROTOCOL,
   AGENT_ID_RULE,
+  INIT_SESSION_LIFECYCLE_RULE,
   NO_LOCAL_FILES_RULE,
   SERVER_AUTHORITY_RULE,
   NO_RECONNECT_NEEDED,
@@ -76,7 +77,7 @@ const PROJECT_ID_LINE =
 // agent retrieves the live pulse from the existing HTTP-only Mission service.
 const MISSION_COMPACT_CONTEXT = [
   'CatWrangler Mission continuity checkpoint: compaction just occurred.',
-  'Do not call init_session again.',
+  INIT_SESSION_LIFECYCLE_RULE,
   'If this exact authenticated agent session is joined to a Mission, fetch GET /api/missions/current?detail=pulse through that project\'s existing Mission HTTP service before consequential work.',
   'Re-ground on the pulse\'s home project, current direction, constraints, open work, live handoff, and linked-project identities.',
   'A cross-project Mission has one authoritative home record; other projects carry backlinks, never duplicate Mission state.',
