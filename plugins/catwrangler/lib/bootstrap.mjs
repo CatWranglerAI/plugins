@@ -33,7 +33,7 @@
  * workspace look unconfigured from any subdirectory of it.
  */
 
-import { findRegistry, hasCustomerRegistrySibling, readRegistryFile } from './registry.mjs';
+import { findRegistry, findCustomerRegistry, readRegistryFile } from './registry.mjs';
 import {
   SESSION_PROTOCOL,
   SUBAGENT_OPENING,
@@ -52,6 +52,9 @@ import {
  * it, which costs nothing.
  */
 const NUDGE_SOURCES = new Set(['startup', 'resume', 'fork']);
+
+// The internal publish switches this constant. Customer hook output is unchanged.
+const INTERNAL_PLUGIN_FLAVOR = false;
 
 /**
  * The two opening instructions.
@@ -91,9 +94,25 @@ const MISSION_COMPACT_CONTEXT = [
  * obscures the one fact this second hook needs to add: which projects are
  * internal and therefore belong on the internal MCP server.
  */
-function buildInternalDisambiguation(projects) {
+function customerRegistryInScope(cwd) {
+  if (!INTERNAL_PLUGIN_FLAVOR) return { found: null, projects: [], error: false };
+  const found = findCustomerRegistry(cwd);
+  if (!found) return { found: null, projects: [], error: false };
+  try {
+    const registry = readRegistryFile(found.path);
+    return { found, projects: Array.isArray(registry.projects) ? registry.projects : [], error: false };
+  } catch {
+    return { found, projects: [], error: true };
+  }
+}
+
+const projectId = (p) => typeof p?.id === 'string' && p.id.trim() ? p.id.trim() : '';
+const oneLine = (value, limit = 120) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
+const customerIds = (customer) => new Set(customer.projects.map(projectId).filter(Boolean));
+
+function buildInternalDisambiguation(projects, customer) {
   const lines = [
-    'A customer .catwrangler registry is also present in this workspace. The customer plugin supplies the shared startup protocol; this internal plugin contributes only internal project routing.',
+    'A customer .catwrangler registry is also present in this workspace. The customer plugin supplies the shared startup protocol; this internal plugin contributes internal project routing.',
   ];
 
   if (projects.length === 0) {
@@ -110,7 +129,65 @@ function buildInternalDisambiguation(projects) {
     lines.push('For work that belongs to an internal project, call the `catwrangler` MCP server\'s `init_session` with the matching `project_id`. Do not use a customer-lane session for internal work.');
   }
 
-  return { additionalContext: lines.join('\\n') };
+  if (customer.error) {
+    lines.push(`The customer registry at ${customer.found.path} could not be read; inspect it before routing a project that may exist on both servers.`);
+  } else {
+    const ids = customerIds(customer);
+    const overlap = projects.map(projectId).filter((id) => id && ids.has(id));
+    if (overlap.length) {
+      lines.push(`Project ID${overlap.length === 1 ? '' : 's'} ${overlap.join(', ')}${overlap.length === 1 ? ' appears' : ' appear'} in both registries. For internal project work, use the internal MCP server and its own agent_id for these IDs.`);
+    }
+  }
+  return { additionalContext: lines.join('\n') };
+}
+
+/** Restore the routing menu after compaction without creating or reclaiming an identity. */
+function buildInternalCompactContext(projects, customer) {
+  const overlap = customerIds(customer);
+  const render = (withNotes) => {
+    const lines = [];
+    if (!customer.found || customer.error) lines.push(MISSION_COMPACT_CONTEXT);
+    else lines.push(INIT_SESSION_LIFECYCLE_RULE);
+    lines.push('CatWrangler project routing checkpoint after compaction. Keep each existing agent_id paired with its project and MCP server; compaction does not start a new session.');
+    lines.push('Internal projects on the `catwrangler` MCP server:');
+    for (const p of projects) {
+      const id = projectId(p);
+      const label = oneLine(p.slug, 80) || '(unnamed)';
+      const org = p.org_slug ? ` [org ${oneLine(p.org_slug, 80)}]` : '';
+      lines.push(`  • ${label}${org} [id ${id || 'missing — verify before routing'}]`);
+      if (withNotes && p.use_when) lines.push(`      use when: ${oneLine(p.use_when)}`);
+    }
+    if (customer.found) {
+      if (customer.error) {
+        lines.push(`Customer registry ${customer.found.path} could not be read. Inspect it before routing a project that may exist on both servers.`);
+      } else {
+        lines.push('Customer projects on server key `catwrangler`:');
+        for (const p of customer.projects) {
+          const id = projectId(p);
+          if (id && overlap.has(id) && projects.some((internal) => projectId(internal) === id)) continue;
+          const label = oneLine(p.slug, 80) || '(unnamed)';
+          const org = p.org_slug ? ` [org ${oneLine(p.org_slug, 80)}]` : '';
+          lines.push(`  • ${label}${org} [id ${id || 'missing — verify before routing'}]`);
+          if (withNotes && p.use_when) lines.push(`      use when: ${oneLine(p.use_when)}`);
+        }
+        const duplicates = projects.map(projectId).filter((id) => id && overlap.has(id));
+        if (duplicates.length) {
+          lines.push(`Both registries name project ID${duplicates.length === 1 ? '' : 's'} ${duplicates.join(', ')}. Route internal project work through the internal MCP server and its own agent_id.`);
+        }
+      }
+    }
+    return lines.join('\n');
+  };
+
+  let context = render(true);
+  if (Buffer.byteLength(context, 'utf8') > 7500) context = render(false);
+  if (Buffer.byteLength(context, 'utf8') > 7500) {
+    context = [
+      customer.found && !customer.error ? INIT_SESSION_LIFECYCLE_RULE : MISSION_COMPACT_CONTEXT,
+      'The workspace project routing menu exceeds the compact hook limit. Inspect the governing internal and customer registries before selecting a project or MCP server; do not guess from the compacted summary.',
+    ].join(' ');
+  }
+  return { additionalContext: context };
 }
 
 /**
@@ -155,14 +232,14 @@ export function buildBootstrap({ cwd, source }) {
 
   const projects = Array.isArray(manifest.projects) ? manifest.projects : [];
   const server = manifest.server || manifest.mcp_url || 'the CatWrangler MCP server';
+  const customer = customerRegistryInScope(cwd);
 
-  if (hasCustomerRegistrySibling(found)) {
-    // The customer plugin owns shared Mission continuity when both lanes are
-    // present, so an internal sibling never injects a duplicate compact pulse.
-    return src === 'compact' ? null : buildInternalDisambiguation(projects);
+  if (src === 'compact') {
+    return INTERNAL_PLUGIN_FLAVOR
+      ? buildInternalCompactContext(projects, customer)
+      : { additionalContext: MISSION_COMPACT_CONTEXT };
   }
-
-  if (src === 'compact') return { additionalContext: MISSION_COMPACT_CONTEXT };
+  if (customer.found) return buildInternalDisambiguation(projects, customer);
 
   // Build the model-facing instruction. Selection is stated, never inferred:
   // one project → connect to it; several → pick by task or ask; unknown → ask
@@ -310,7 +387,8 @@ export function buildSubagentBootstrap({ cwd }) {
 
   const projects = Array.isArray(manifest.projects) ? manifest.projects : [];
 
-  if (hasCustomerRegistrySibling(found)) return buildInternalDisambiguation(projects);
+  const customer = customerRegistryInScope(cwd);
+  if (customer.found) return buildInternalDisambiguation(projects, customer);
 
   const lines = [];
   lines.push(SUBAGENT_OPENING);

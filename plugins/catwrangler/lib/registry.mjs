@@ -121,7 +121,7 @@ export function hasCustomerRegistrySibling(found) {
  *   'ancestor' — found by walking up
  *   'home'     — the home registry, reached from somewhere else
  */
-export function findRegistry(dir) {
+function findRegistryAtPath(dir, pathForDir) {
   const start = resolve(dir || '.');
   let home = '';
   try {
@@ -131,7 +131,7 @@ export function findRegistry(dir) {
   }
 
   for (let d = start; ; ) {
-    const fp = registryPath(d);
+    const fp = pathForDir(d);
     if (isRegistryFile(fp)) {
       const scope = d === start ? 'cwd' : d === home ? 'home' : 'ancestor';
       return { dir: d, path: fp, scope };
@@ -143,10 +143,19 @@ export function findRegistry(dir) {
 
   // A cwd outside the home tree never passes through it above.
   if (home && home !== start) {
-    const fp = registryPath(home);
+    const fp = pathForDir(home);
     if (isRegistryFile(fp)) return { dir: home, path: fp, scope: 'home' };
   }
   return null;
+}
+
+export function findRegistry(dir) {
+  return findRegistryAtPath(dir, registryPath);
+}
+
+/** Resolve the customer registry independently of the current plugin's registry. */
+export function findCustomerRegistry(dir) {
+  return findRegistryAtPath(dir, (d) => join(d, '.catwrangler'));
 }
 
 /**
