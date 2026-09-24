@@ -219,6 +219,35 @@ function writeRegistry(dir, m) {
 const projectsOf = (m) => (Array.isArray(m && m.projects) ? m.projects : []);
 
 /**
+ * Canonicalize project entries without inventing identity. A server project id is
+ * globally stable and therefore wins; entries without one fall back to the
+ * existing (slug, org_slug) identity. Later server-owned fields refresh the
+ * canonical entry, while the first local use_when note remains authoritative.
+ */
+export function dedupeProjects(projects) {
+  const canonical = [];
+  for (const candidate of Array.isArray(projects) ? projects : []) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      canonical.push(candidate);
+      continue;
+    }
+    const existing = canonical.find((entry) => entry && typeof entry === 'object' && (
+      (candidate.id && entry.id === candidate.id)
+      || (candidate.slug && entry.slug === candidate.slug
+        && (entry.org_slug || null) === (candidate.org_slug || null))
+    ));
+    if (!existing) {
+      canonical.push({ ...candidate });
+      continue;
+    }
+    const localUseWhen = existing.use_when || candidate.use_when;
+    Object.assign(existing, candidate);
+    if (localUseWhen) existing.use_when = localUseWhen;
+  }
+  return canonical;
+}
+
+/**
  * Registered projects for this workspace, hunting up from `dir` and then home.
  * Never throws on a missing file.
  *
@@ -245,7 +274,7 @@ export function listRegistered(dir) {
     scope: found.scope,
     write_path: writePath,
     server: m.server || m.mcp_url || null,
-    projects: projectsOf(m),
+    projects: dedupeProjects(projectsOf(m)),
   };
 }
 
@@ -277,6 +306,7 @@ export function registerProject(dir, opts) {
   let m = readRegistry(dir);
   if (!m) m = { version: 1, server: '', mcp_url: '', projects: [] };
   if (!Array.isArray(m.projects)) m.projects = [];
+  m.projects = dedupeProjects(m.projects);
 
   // Fill top-level server/mcp_url only when currently empty: an explicit value
   // wins, otherwise fall back to the endpoint the plugin already bundles.
@@ -289,10 +319,12 @@ export function registerProject(dir, opts) {
   // here. When org is given, match on (slug, org_slug) so a second org's
   // same-named project is a distinct entry rather than an overwrite. Without org,
   // fall back to slug-only matching, which keeps every pre-org entry working.
-  const existing = m.projects.find((p) => p && p.slug === slug && (org ? p.org_slug === org : true));
+  const existing = (opts.id && m.projects.find((p) => p && p.id === opts.id))
+    || m.projects.find((p) => p && p.slug === slug && (org ? p.org_slug === org : true));
 
   let action;
   if (existing) {
+    existing.slug = slug;
     if (opts.id) existing.id = opts.id;
     if (opts.name) existing.name = opts.name;
     if (opts.desc) existing.description = opts.desc;
@@ -311,6 +343,7 @@ export function registerProject(dir, opts) {
     m.projects.push(entry);
     action = 'added';
   }
+  m.projects = dedupeProjects(m.projects);
   writeRegistry(dir, m);
 
   // Surface a slug now ambiguous in the local registry so the caller can render
@@ -341,7 +374,8 @@ export function unregisterProject(dir, opts) {
     }
     fail('no .catwrangler in ' + target);
   }
-  const before = projectsOf(m).length;
+  m.projects = dedupeProjects(projectsOf(m));
+  const before = m.projects.length;
 
   // Refuse to guess when the slug is ambiguous. Removing the wrong org's project
   // is silent and annoying to undo, so require the org instead.
