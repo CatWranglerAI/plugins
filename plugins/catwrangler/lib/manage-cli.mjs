@@ -13,6 +13,7 @@
  *   add    --slug S [--id I] [--org O] [--name N] [--desc D] [--use-when W]
  *                     [--web-url X] [--server U] [--mcp-url M]
  *   remove --slug S [--org O]
+ *   help | --help | -h                         → { ok, usage }
  *
  * --id carries the server-assigned project id (the `id` field from
  * list_projects, shaped like `p-841207`). It is stored verbatim so `connect` can
@@ -51,6 +52,18 @@
 
 import { listRegistered, registerProject, unregisterProject, RegistryError } from './registry.mjs';
 
+const USAGE = [
+  'Usage: manage.mjs <command> [options]',
+  '',
+  'Commands:',
+  '  list [--dir DIR]',
+  '  add --slug S [--id I] [--org O] [--name N] [--desc D] [--use-when W] [--web-url X] [--server U] [--mcp-url M] [--dir DIR]',
+  '  remove --slug S [--org O] [--dir DIR]',
+  '',
+  'Options:',
+  '  --help, -h  Show this usage before validating command arguments.',
+].join('\n');
+
 function parseArgs(argv) {
   const [cmd, ...rest] = argv;
   const opts = {};
@@ -86,6 +99,10 @@ export function runManageCli(argv) {
 
   try {
     const { cmd, opts } = parseArgs(argv);
+    if (['help', '--help', '-h'].includes(cmd)
+        || argv.some(value => value === '--help' || value === '-h')) {
+      return out({ ok: true, usage: USAGE });
+    }
     const dir = val(opts, 'dir') || process.cwd();
 
     if (cmd === 'list') return out(listRegistered(dir));
