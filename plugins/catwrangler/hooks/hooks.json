@@ -19,6 +19,17 @@
           }
         ]
       }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "mcp__plugin_catwrangler(-internal)?_catwrangler(-internal)?__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PLUGIN_ROOT}/scripts\"; . ./tool-failure"
+          }
+        ]
+      }
     ]
   }
 }

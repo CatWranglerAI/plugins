@@ -34,6 +34,8 @@
  */
 
 import { findRegistry, findCustomerRegistry, readRegistryFile } from './registry.mjs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   SESSION_PROTOCOL,
   SUBAGENT_OPENING,
@@ -55,6 +57,8 @@ const NUDGE_SOURCES = new Set(['startup', 'resume', 'fork']);
 
 // The internal publish switches this constant. Customer hook output is unchanged.
 const INTERNAL_PLUGIN_FLAVOR = false;
+const SECRET_HELPER_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'secrets-exec.mjs');
+const SECRET_HELPER_LINE = `For Project Secret script use, call runtime_secrets action=list, then run node on ${SECRET_HELPER_PATH} with --help when needed. Its prepare/seal/exec flow keeps values out of normal model context.`;
 
 /**
  * The two opening instructions.
@@ -301,6 +305,7 @@ export function buildBootstrap({ cwd, source }) {
   // Shared verbatim with /catwrangler:connect, which has to say the same thing to
   // a session the hook found nothing to bootstrap. See lib/protocol.mjs.
   lines.push(...SESSION_PROTOCOL);
+  if (!INTERNAL_PLUGIN_FLAVOR) lines.push(SECRET_HELPER_LINE);
 
   // A configured workspace connects itself, and that success is invisible. Say so,
   // or the user carries the first-run connect forward as a per-session chore.
@@ -426,6 +431,7 @@ export function buildSubagentBootstrap({ cwd }) {
   lines.push(AGENT_ID_RULE);
   lines.push(NO_LOCAL_FILES_RULE);
   lines.push(SERVER_AUTHORITY_RULE);
+  if (!INTERNAL_PLUGIN_FLAVOR) lines.push(SECRET_HELPER_LINE);
 
   // Then what binds a sub-agent and nobody else.
   lines.push(...SUBAGENT_PROTOCOL);

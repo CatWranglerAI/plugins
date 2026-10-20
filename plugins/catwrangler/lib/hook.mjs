@@ -9,6 +9,8 @@
  *            SessionStart: `source` is startup | resume | clear | compact on
  *            both hosts (Claude Code adds `fork`).
  *            SubagentStart: `agent_id` + `agent_type` instead, and no `source`.
+ *            PostToolUseFailure (Claude Code, cw:d-4453): `tool_name`, `error`,
+ *            `duration_ms`, `is_interrupt`; read whole via readHookPayload.
  *   stdout = JSON: {
  *     systemMessage?: string,              // top-level: shown to the USER
  *     hookSpecificOutput?: {               // event-scoped: read by the MODEL
@@ -68,6 +70,17 @@ export function readHookInput({ cwdEnvVar } = {}) {
   return { cwd, source: input.source, agentType: input.agent_type };
 }
 
+/** The parsed hook payload as-is, or {} when it is absent or malformed. */
+export function readHookPayload() {
+  try {
+    const raw = readStdin();
+    const parsed = raw.trim() ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Write the SessionStart wire shape and exit cleanly. Takes the flat
  * { additionalContext?, systemMessage? } from buildBootstrap and nests it as the
@@ -87,6 +100,11 @@ export function emitSessionStart(out) {
  */
 export function emitSubagentStart(out) {
   emitHookOutput('SubagentStart', out);
+}
+
+/** The PostToolUseFailure mirror (cw:d-4453). `null` is the usual answer: `{}`. */
+export function emitPostToolUseFailure(out) {
+  emitHookOutput('PostToolUseFailure', out);
 }
 
 /** Shared envelope writer. `hookEventName` is the only per-event difference. */

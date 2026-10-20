@@ -1,0 +1,38 @@
+#!/bin/sh
+# POSIX half of Claude's dot-sourced PostToolUseFailure basename (cw:d-4453).
+# PowerShell resolves the same relative name to tool-failure.ps1.
+#
+# Unlike the bootstrap launchers this one never tells the user anything when it
+# cannot run: a missing Node or script is not worth a notice on every failed
+# call. Every path prints valid JSON and exits 0.
+
+set -u
+
+if [ -n "${CATWRANGLER_PLUGIN_ROOT:-}" ]; then
+  TF_DIR="$CATWRANGLER_PLUGIN_ROOT/scripts"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  TF_DIR="$CLAUDE_PLUGIN_ROOT/scripts"
+else
+  TF_DIR=$PWD
+fi
+
+if [ ! -f "$TF_DIR/resolve-node.sh" ] || [ ! -f "$TF_DIR/tool-failure.mjs" ]; then
+  printf '{}'
+  exit 0
+fi
+
+. "$TF_DIR/resolve-node.sh"
+TF_NODE=$(resolve_node claude) || { printf '{}'; exit 0; }
+
+TF_HOOK="$TF_DIR/tool-failure.mjs"
+# Git Bash hands POSIX-form paths; a native node.exe needs the Windows form.
+if command -v cygpath >/dev/null 2>&1; then
+  case "$TF_HOOK" in
+    /*) TF_HOOK=$(cygpath -w "$TF_HOOK") ;;
+  esac
+fi
+
+TF_OUT=$("$TF_NODE" "$TF_HOOK" 2>/dev/null) || TF_OUT=''
+[ -n "$TF_OUT" ] || TF_OUT='{}'
+printf '%s' "$TF_OUT"
+exit 0
