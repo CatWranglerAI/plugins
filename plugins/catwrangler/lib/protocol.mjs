@@ -33,6 +33,8 @@
  * the only place that reads the registry.
  */
 
+import { TEAM_RULES } from './team-rules.mjs';
+
 /**
  * The identity contract. First rule everywhere, because every other tool call
  * depends on getting it right, and getting it wrong fails every call rather than
@@ -57,6 +59,15 @@ export const SERVER_AUTHORITY_RULE =
   'Whatever init_session returns is the authority on how to work this project — read it and follow it, even where it goes beyond these lines.';
 
 /**
+ * How concurrent work is meant to go (cw:d-4664). The words live in
+ * team-rules.json beside the rules the PreToolUse and Stop hooks enforce, so
+ * what the session is taught and what it is held to come from one file, which
+ * clients outside this plugin read too. Empty only when that file cannot be
+ * read, and then the protocols below simply leave it out.
+ */
+export const TEAM_WORK_RULE = typeof TEAM_RULES?.teach === 'string' ? TEAM_RULES.teach : '';
+
+/**
  * What the registry is worth. Session-only: its trigger is the user naming a
  * project, which is not a thing that happens to a sub-agent.
  */
@@ -72,8 +83,9 @@ export const SESSION_PROTOCOL = [
   AGENT_ID_RULE,
   NO_LOCAL_FILES_RULE,
   SERVER_AUTHORITY_RULE,
+  TEAM_WORK_RULE,
   REGISTRY_IS_CACHE_RULE,
-];
+].filter(Boolean);
 
 /**
  * How the sub-agent block opens, and the sub-agent's counterpart to the session

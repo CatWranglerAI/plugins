@@ -27,6 +27,29 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|spawn_agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/team-rules\" codex",
+            "commandWindows": "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand JAByAG8AbwB0ACAAPQAgACQAZQBuAHYAOgBQAEwAVQBHAEkATgBfAFIATwBPAFQACgBpAGYAIAAoAC0AbgBvAHQAIAAkAHIAbwBvAHQAKQAgAHsAIAAkAHIAbwBvAHQAIAA9ACAAJABlAG4AdgA6AEMATABBAFUARABFAF8AUABMAFUARwBJAE4AXwBSAE8ATwBUACAAfQAKACYAIAAoAEoAbwBpAG4ALQBQAGEAdABoACAAJAByAG8AbwB0ACAAJwBzAGMAcgBpAHAAdABzAFwAdABlAGEAbQAtAHIAdQBsAGUAcwAuAHAAcwAxACcAKQAgAGMAbwBkAGUAeAAKAGUAeABpAHQAIAAkAEwAQQBTAFQARQBYAEkAVABDAE8ARABFAA=="
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/scripts/team-rules\" codex",
+            "commandWindows": "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand JAByAG8AbwB0ACAAPQAgACQAZQBuAHYAOgBQAEwAVQBHAEkATgBfAFIATwBPAFQACgBpAGYAIAAoAC0AbgBvAHQAIAAkAHIAbwBvAHQAKQAgAHsAIAAkAHIAbwBvAHQAIAA9ACAAJABlAG4AdgA6AEMATABBAFUARABFAF8AUABMAFUARwBJAE4AXwBSAE8ATwBUACAAfQAKACYAIAAoAEoAbwBpAG4ALQBQAGEAdABoACAAJAByAG8AbwB0ACAAJwBzAGMAcgBpAHAAdABzAFwAdABlAGEAbQAtAHIAdQBsAGUAcwAuAHAAcwAxACcAKQAgAGMAbwBkAGUAeAAKAGUAeABpAHQAIAAkAEwAQQBTAFQARQBYAEkAVABDAE8ARABFAA=="
+          }
+        ]
+      }
     ]
   }
 }

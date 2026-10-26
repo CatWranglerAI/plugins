@@ -44,6 +44,7 @@ import {
   INIT_SESSION_LIFECYCLE_RULE,
   NO_LOCAL_FILES_RULE,
   SERVER_AUTHORITY_RULE,
+  TEAM_WORK_RULE,
   NO_RECONNECT_NEEDED,
 } from './protocol.mjs';
 
@@ -431,6 +432,9 @@ export function buildSubagentBootstrap({ cwd }) {
   lines.push(AGENT_ID_RULE);
   lines.push(NO_LOCAL_FILES_RULE);
   lines.push(SERVER_AUTHORITY_RULE);
+  // A sub-agent is often the one writing briefs for workers of its own, so it
+  // needs the team-work rules as much as the session does (cw:d-4664).
+  if (TEAM_WORK_RULE) lines.push(TEAM_WORK_RULE);
   if (!INTERNAL_PLUGIN_FLAVOR) lines.push(SECRET_HELPER_LINE);
 
   // Then what binds a sub-agent and nobody else.

@@ -20,6 +20,27 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PLUGIN_ROOT}/scripts\"; . ./team-rules"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PLUGIN_ROOT}/scripts\"; . ./team-rules"
+          }
+        ]
+      }
+    ],
     "PostToolUseFailure": [
       {
         "matcher": "mcp__plugin_catwrangler(-internal)?_catwrangler(-internal)?__.*",
