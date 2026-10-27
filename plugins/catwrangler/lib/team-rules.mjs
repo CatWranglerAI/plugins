@@ -24,6 +24,12 @@
  *                 avoid conflicts blocks the stop once (`stop_hook_active`
  *                 marks the retry), with the correction as the reason.
  *
+ * Only instruction is matched (cw:d-4739). Quoted text is evidence: a log
+ * line, an error, a code block. On the surfaces the book lists under
+ * `quoted_is_evidence` it is masked before matching. And of a Bash command,
+ * only what the launched worker reads is its brief: the launch's own words,
+ * heredocs and prompt files, never a grep or sed argument beside it.
+ *
  * Both are confined to CatWrangler workspaces by the same registry hunt as the
  * bootstrap. The plugin is installed user-global, and outside a workspace
  * nothing reconciles concurrent edits, so the rules do not hold there.
@@ -67,6 +73,7 @@ export function compileRuleBook(book) {
   const compile = (source) => new RegExp(source, book.flags || '');
   return {
     surfaces: book.surfaces || {},
+    quotedIsEvidence: book.quoted_is_evidence || [],
     ignore: (book.ignore || []).map(compile),
     rules: book.rules.map((rule) => ({
       ...rule,
@@ -85,10 +92,29 @@ export function splitSentences(text) {
     .filter(Boolean);
 }
 
+const FENCED_BLOCK = /(^|\n)[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g;
+const QUOTED_SPAN = /`([^`\n]+)`|"([^"\n]*)"|“([^”\n]*)”/g;
+
+/**
+ * Text with its quoted evidence masked, as the book's $comment defines it: a
+ * closed fenced code block goes; a backtick, double-quoted or curly-quoted span
+ * on one line keeps its text when it is a single token (a path or a name, which
+ * the sentence around it is about) and is otherwise replaced by an ellipsis.
+ */
+export function maskQuoted(text) {
+  return String(text ?? '')
+    .replace(FENCED_BLOCK, '$1')
+    .replace(QUOTED_SPAN, (_, tick, straight, curly) => {
+      const inner = (tick ?? straight ?? curly).trim();
+      return /^\S+$/.test(inner) ? inner : '…';
+    });
+}
+
 /** Every { rule, sentence } hit in `text` for one surface: `worker_brief` or `agent_text`. */
 export function scanText(text, surface, compiled) {
   const hits = [];
-  for (const sentence of splitSentences(text)) {
+  const scanned = compiled.quotedIsEvidence.includes(surface) ? maskQuoted(text) : text;
+  for (const sentence of splitSentences(scanned)) {
     if (compiled.ignore.some((re) => re.test(sentence))) continue;
     for (const rule of compiled.rules) {
       if (!rule.applies_to.includes(surface)) continue;
@@ -122,7 +148,10 @@ export function formatHits(intro, hits) {
   return lines.join('\n').trimEnd();
 }
 
-/** A Bash command that starts a headless worker: `claude -p` / `--print`, or `codex exec`. */
+/**
+ * A Bash command that may start a headless worker: `claude -p` / `--print`, or
+ * `codex exec`. A cheap first look only; the shell parse below decides.
+ */
 const WORKER_LAUNCH = /\bclaude\b[^\n|;&]*?\s(?:-p|--print)\b|\bcodex\b[^\n|;&]*?\bexec\b/;
 
 /**
@@ -168,22 +197,214 @@ function readPromptFile(path) {
   }
 }
 
+const HEREDOC = /(?<!<)<<(?!<)(-?)[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\?([A-Za-z_][\w-]*))/g;
+const heredocMark = (index) => `__cw_heredoc_${index}__`;
+
+/**
+ * The command with each heredoc body cut out and its `<<DELIM` replaced by a
+ * marker word, so the shell parse never reads a body as commands. The bodies
+ * come back by index; a body with no closing line runs to the end.
+ */
+function cutHeredocs(command) {
+  const lines = command.split('\n');
+  const bodies = [];
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const pending = [];
+    out.push(lines[i].replace(HEREDOC, (_, dash, single, double, bare) => {
+      pending.push({ dash, delimiter: single ?? double ?? bare });
+      return ` ${heredocMark(bodies.length + pending.length - 1)} `;
+    }));
+    for (const { dash, delimiter } of pending) {
+      const body = [];
+      while (++i < lines.length && (dash ? lines[i].replace(/^\t+/, '') : lines[i]).trim() !== delimiter) body.push(lines[i]);
+      bodies.push(body.join('\n'));
+    }
+  }
+  return { text: out.join('\n'), bodies };
+}
+
+/** The index just past the `)` closing a `$(` whose body starts at `i`. */
+function closeSubstitution(text, i) {
+  for (let depth = 1; i < text.length; i++) {
+    const c = text[i];
+    if (c === '\\') i++;
+    else if (c === "'") i = text.indexOf("'", i + 1) < 0 ? text.length : text.indexOf("'", i + 1);
+    else if (c === '"') i = readDoubleQuoted(text, i + 1).end - 1;
+    else if (c === '`') i = text.indexOf('`', i + 1) < 0 ? text.length : text.indexOf('`', i + 1);
+    else if (c === '(') depth++;
+    else if (c === ')' && --depth === 0) return i + 1;
+  }
+  return text.length;
+}
+
+/**
+ * A double-quoted string whose body starts at `i`: its value and the index past
+ * the closing quote. A command substitution inside it stands as a space in the
+ * value, because the worker reads its output, not its text.
+ */
+function readDoubleQuoted(text, i) {
+  let value = '';
+  while (i < text.length && text[i] !== '"') {
+    const c = text[i];
+    if (c === '\\' && '$`"\\\n'.includes(text[i + 1] ?? '')) {
+      value += text[i + 1] === '\n' ? '' : text[i + 1];
+      i += 2;
+    } else if (c === '$' && text[i + 1] === '(') {
+      value += ' ';
+      i = closeSubstitution(text, i + 2);
+    } else if (c === '`') {
+      value += ' ';
+      i = text.indexOf('`', i + 1) < 0 ? text.length : text.indexOf('`', i + 1) + 1;
+    } else {
+      value += c;
+      i++;
+    }
+  }
+  return { value, end: i + 1 };
+}
+
+const REDIRECT = /^(?:<<<|<>|<&|>&|>>|>\||&>>|&>|<|>)/;
+
+/**
+ * A shell command split into simple commands, each with its words (unquoted
+ * values, redirections as `{ redirect }`), its source span, and the operator
+ * that ends it. Enough of POSIX sh to find a launch and its arguments; anything
+ * it does not model reads as ordinary word characters.
+ */
+function shellCommands(text) {
+  const commands = [];
+  let words = [];
+  let word = null;
+  let start = 0;
+  const endWord = () => {
+    if (word !== null) words.push(word);
+    word = null;
+  };
+  for (let i = 0; i < text.length;) {
+    const c = text[i];
+    if (c === '\\') {
+      word = (word ?? '') + (text[i + 1] === '\n' ? '' : text[i + 1] ?? '');
+      i += 2;
+    } else if (c === "'") {
+      const close = text.indexOf("'", i + 1);
+      const end = close < 0 ? text.length : close;
+      word = (word ?? '') + text.slice(i + 1, end);
+      i = end + 1;
+    } else if (c === '"') {
+      const { value, end } = readDoubleQuoted(text, i + 1);
+      word = (word ?? '') + value;
+      i = end;
+    } else if (c === '$' && text[i + 1] === '(') {
+      word = (word ?? '') + ' ';
+      i = closeSubstitution(text, i + 2);
+    } else if (c === '`') {
+      const close = text.indexOf('`', i + 1);
+      word = (word ?? '') + ' ';
+      i = close < 0 ? text.length : close + 1;
+    } else if (c === '#' && word === null) {
+      const newline = text.indexOf('\n', i);
+      i = newline < 0 ? text.length : newline;
+    } else if (REDIRECT.test(text.slice(i, i + 3))) {
+      // A file-descriptor number before the operator (2>&1) is not a word.
+      if (word !== null && !/^\d+$/.test(word)) words.push(word);
+      word = null;
+      const op = text.slice(i, i + 3).match(REDIRECT)[0];
+      words.push({ redirect: op });
+      i += op.length;
+    } else if (c === '|' || c === '&' || c === ';' || c === '\n') {
+      endWord();
+      const op = /^(?:\|\||&&|;;|\|&)/.test(text.slice(i, i + 2)) ? text.slice(i, i + 2) : c;
+      commands.push({ words, start, end: i, op });
+      words = [];
+      i += op.length;
+      start = i;
+    } else if (/\s/.test(c)) {
+      endWord();
+      i++;
+    } else {
+      word = (word ?? '') + c;
+      i++;
+    }
+  }
+  endWord();
+  commands.push({ words, start, end: text.length, op: null });
+  return commands;
+}
+
+/**
+ * Where a simple command launches a worker: the index of its `claude` / `codex`
+ * word, when a later word makes it `claude -p` / `--print` or `codex exec`.
+ */
+function findLaunch(words) {
+  for (let k = 0; k < words.length; k++) {
+    if (typeof words[k] !== 'string') continue;
+    const program = words[k].split(/[\\/]/).pop().replace(/\.(?:exe|cmd)$/i, '');
+    const rest = words.slice(k + 1).filter((w) => typeof w === 'string');
+    if (program === 'claude' && rest.some((w) => w === '-p' || w === '--print' || w.startsWith('--print='))) return { k, program };
+    if (program === 'codex' && rest.includes('exec')) return { k, program };
+  }
+  return null;
+}
+
+/**
+ * The prompt text a launch command line hands its worker: the launch's own
+ * argument words (options aside), here-strings, and the heredocs and prompt
+ * files of its pipeline. A word that is itself a launch command line, as in
+ * `bash -lc 'codex exec ...'`, is read the same way.
+ */
+function launchPrompts(command, cwd, bodies) {
+  const texts = [];
+  const commands = Array.isArray(command)
+    ? [{ words: command.map(String), start: 0, end: 0, op: null }]
+    : shellCommands(command);
+  const source = Array.isArray(command) ? '' : command;
+  for (let n = 0; n < commands.length; n++) {
+    const { words } = commands[n];
+    for (const word of words) {
+      if (typeof word === 'string' && /\s/.test(word) && WORKER_LAUNCH.test(word)) texts.push(...launchPrompts(word, cwd, bodies));
+    }
+    const launch = findLaunch(words);
+    if (!launch) continue;
+    let skipTarget = false;
+    let subcommand = launch.program === 'codex';
+    for (const word of words.slice(launch.k + 1)) {
+      if (typeof word !== 'string') {
+        skipTarget = word.redirect !== '<<<';
+        continue;
+      }
+      if (skipTarget) { skipTarget = false; continue; }
+      if (subcommand && word === 'exec') { subcommand = false; continue; }
+      if (word.startsWith('-') || !word.trim()) continue;
+      texts.push(word);
+    }
+    // The pipeline this launch belongs to: commands joined by `|` around it.
+    let first = n;
+    while (first > 0 && commands[first - 1].op?.startsWith('|') && commands[first - 1].op !== '||') first--;
+    let last = n;
+    while (last < commands.length - 1 && commands[last].op?.startsWith('|') && commands[last].op !== '||') last++;
+    const pipeline = source.slice(commands[first].start, commands[last].end);
+    for (const [, index] of pipeline.matchAll(/__cw_heredoc_(\d+)__/g)) texts.push(bodies[Number(index)]);
+    texts.push(...promptFiles(pipeline, cwd).map(readPromptFile));
+  }
+  return texts;
+}
+
 /**
  * The worker brief(s) in a PreToolUse payload. A shell command counts only when
- * it launches a worker, and then the whole command is scanned (an inline or
- * heredoc prompt lives there) along with every prompt file it reads. Any other
+ * it launches a worker, and then only what that worker reads is its brief: the
+ * launch's prompt words, here-strings, heredocs and prompt files. The rest of
+ * the command line, a grep or sed argument beside the launch, is not. Any other
  * tool the hook is matched on is a worker-starting tool, whose brief is its
  * `prompt` (Claude Code's Agent/Task) or `message` (Codex spawn_agent).
  */
 export function workerBriefs(payload, cwd) {
   const input = payload?.tool_input && typeof payload.tool_input === 'object' ? payload.tool_input : {};
-  const command = Array.isArray(input.command) ? input.command.join(' ') : input.command;
-  if (typeof command === 'string') {
-    if (!WORKER_LAUNCH.test(command)) return [];
-    // A double quote bounds an inline prompt, so it bounds a sentence too:
-    // otherwise the quoted sentence would carry the whole command line with it.
-    const inline = command.replaceAll('"', '\n');
-    return [inline, ...promptFiles(command, cwd).map(readPromptFile)].filter(Boolean);
+  const command = input.command;
+  if (typeof command === 'string' || Array.isArray(command)) {
+    if (!WORKER_LAUNCH.test(Array.isArray(command) ? command.join(' ') : command)) return [];
+    const { text, bodies } = Array.isArray(command) ? { text: command, bodies: [] } : cutHeredocs(command);
+    return launchPrompts(text, cwd, bodies).filter((brief) => typeof brief === 'string' && brief.trim());
   }
   return [input.prompt, input.message].filter((text) => typeof text === 'string' && text.trim());
 }

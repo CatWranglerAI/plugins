@@ -81,16 +81,16 @@ const PROJECT_ID_LINE =
   'When the project you connect to carries an `id` below, pass that id to init_session as its `project_id` parameter — it pins the exact project. Only fall back to the slug when no id is recorded.';
 
 // cw:d-3939: exact post-compaction workframe. The hook has no credential and
-// deliberately does not fetch or cache Mission state; the already-authenticated
-// agent retrieves the live pulse from the existing HTTP-only Mission service.
+// deliberately does not fetch or cache Mission state; cw:d-4685: the already-connected
+// agent retrieves the live pulse through the project's `mission` MCP tool.
 const MISSION_COMPACT_CONTEXT = [
   'CatWrangler Mission continuity checkpoint: compaction just occurred.',
   INIT_SESSION_LIFECYCLE_RULE,
-  'If this exact authenticated agent session is joined to a Mission, fetch GET /api/missions/current?detail=pulse through that project\'s existing Mission HTTP service before consequential work.',
+  'If this exact authenticated agent session is joined to a Mission, call that project\'s `mission` MCP tool with action pulse before consequential work.',
   'Re-ground on the pulse\'s home project, current direction, constraints, open work, live handoff, and linked-project identities.',
   'A cross-project Mission has one authoritative home record; other projects carry backlinks, never duplicate Mission state.',
   'If no Mission is active, continue normally.',
-  'Do not create a helper identity, separate credential, local Mission cache, or Mission MCP tool.',
+  'Do not create a helper identity, separate credential, or local Mission cache.',
 ].join(' ');
 
 /**

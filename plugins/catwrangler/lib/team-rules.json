@@ -1,7 +1,8 @@
 {
-  "$comment": "CatWrangler team-work rule book (cw:d-4664). One file, read by the Claude Code / Codex plugin hooks (lib/team-rules.mjs) and by any other client, such as the CatWrangler Harness task tool. Matching: fold typographic apostrophes to ASCII, then split the text into sentences at . ! or ? followed by whitespace, and at ; and line breaks. Compile every pattern, exception and ignore entry with new RegExp(source, flags). A sentence hits a rule when the rule applies to the surface being checked, no top-level ignore pattern matches the sentence, at least one of the rule's patterns matches, and none of its exceptions match. Each rule's examples are its test cases: every positive must hit that rule, and no negative may hit any rule on the same surface.",
+  "$comment": "CatWrangler team-work rule book (cw:d-4664). One file, read by the Claude Code / Codex plugin hooks (lib/team-rules.mjs) and by any other client, such as the CatWrangler Harness task tool. Matching: on a surface listed in quoted_is_evidence, first mask quoted evidence: remove each closed fenced code block (a line opening with three or more backticks or tildes, through the line that closes it with the same marker), then replace each one-line span in backticks, straight double quotes or curly double quotes with its trimmed text when that text is a single token (a path or a name), and otherwise with an ellipsis. A quoted log line or error is evidence, not instruction. Then fold typographic apostrophes to ASCII, and split the text into sentences at . ! or ? followed by whitespace, and at ; and line breaks. Compile every pattern, exception and ignore entry with new RegExp(source, flags). A sentence hits a rule when the rule applies to the surface being checked, no top-level ignore pattern matches the sentence, at least one of the rule's patterns matches, and none of its exceptions match. Each rule's examples are its test cases: every positive must hit that rule, and no negative may hit any rule on the same surface. A worker_brief from a shell command is only what the launched worker reads (the claude -p / codex exec arguments other than options, here-strings, and the heredocs and prompt files of its pipeline), never the rest of the command line.",
   "version": 1,
   "flags": "i",
+  "quoted_is_evidence": ["worker_brief", "agent_text"],
   "surfaces": {
     "worker_brief": {
       "description": "Instructions an agent gives a worker it starts: an Agent/Task tool prompt, or the prompt of a claude -p / codex exec command.",
@@ -24,7 +25,7 @@
       "patterns": [
         "\\b(?:do\\s+not|don'?t|never|must\\s+not|mustn'?t|should\\s+not|shouldn'?t|may\\s+not|cannot|can'?t|not\\s+allowed\\s+to)\\s+(?:(?:ever|even|try\\s+to|attempt\\s+to|directly|yourself|otherwise)\\s+)?(?:touch|edit|modify|change|alter|rewrite|write\\s+to|commit\\s+to|work\\s+(?:in|on))\\b[^;\\n]*?(?:[\\w.*-]*/[\\w./*-]*|\\b[\\w*-]+\\.(?:m?[jt]sx?|c[jt]s|json|ya?ml|md|sh|ps1|py|go|rs|java|rb|css|s[ac]ss|html|sql|toml|txt|lock)\\b|\\b(?:files?|director(?:y|ies)|dirs?|folders?|paths?|modules?|packages?|code|codebase|areas?|subsystems?|components?)\\b)",
         "\\bonly\\s+(?:edit|touch|modify|change|write\\s+to|work\\s+(?:in|on))\\b[^;\\n]*?(?:[\\w.*-]*/[\\w./*-]*|\\b[\\w*-]+\\.(?:m?[jt]sx?|c[jt]s|json|ya?ml|md|sh|ps1|py|go|rs|java|rb|css|s[ac]ss|html|sql|toml|txt|lock)\\b|\\b(?:files?|director(?:y|ies)|dirs?|folders?|paths?|modules?|packages?|code|codebase|areas?|subsystems?|components?)\\b)",
-        "\\b(?:belongs?\\s+to|owned\\s+by|reserved\\s+for|claimed\\s+by)\\s+(?:an?other|the\\s+other|other|a\\s+different|(?:a|the)\\s+(?:separate|second|parallel)|(?:workers?|agents?|teammates?|sub-?agents?)\\b)",
+        "(?:[\\w.*-]*/[\\w./*-]*|\\b[\\w*-]+\\.(?:m?[jt]sx?|c[jt]s|json|ya?ml|md|sh|ps1|py|go|rs|java|rb|css|s[ac]ss|html|sql|toml|txt|lock)\\b|\\b(?:files?|director(?:y|ies)|dirs?|folders?|paths?|modules?|packages?|code|codebase|areas?|subsystems?|components?|parts?|sections?|work|tasks?|pieces?\\s+of\\s+work)\\b)[^;\\n]*?\\b(?:belongs?\\s+to|owned\\s+by|reserved\\s+for|claimed\\s+by)\\s+(?:(?:an?other|the\\s+other|other|a\\s+different|(?:a|the)\\s+(?:separate|second|parallel|different))\\s+(?:[\\w-]+\\s+)?)?(?:workers?|agents?|teammates?|sub-?agents?)\\b",
         "\\bstay\\s+(?:out\\s+of|away\\s+from|clear\\s+of)\\b",
         "\\bleave\\b[^;\\n]*?(?:[\\w.*-]*/[\\w./*-]*|\\b[\\w*-]+\\.(?:m?[jt]sx?|c[jt]s|json|ya?ml|md|sh|ps1|py|go|rs|java|rb|css|s[ac]ss|html|sql|toml|txt|lock)\\b|\\b(?:files?|director(?:y|ies)|dirs?|folders?|paths?|modules?|packages?|code|codebase|areas?|subsystems?|components?)\\b)[^;\\n]*?\\b(?:alone|untouched|as[\\s-]is)\\b",
         "\\b(?:off[\\s-]limits|hands[\\s-]off)\\b",
@@ -44,7 +45,11 @@
           "Stay out of the merge pipeline.",
           "You must not modify package.json.",
           "Leave the cdk/ directory alone.",
-          "Treat src/core/ as read-only."
+          "Treat src/core/ as read-only.",
+          "You may not edit src/api/routes.ts because another worker owns it.",
+          "Do not edit `lib/bootstrap.mjs`, another agent owns it.",
+          "The hooks folder is claimed by a separate sub-agent.",
+          "That piece of work belongs to worker B."
         ],
         "negative": [
           "Start by reading src/server/modules/sccs/merge.ts.",
@@ -53,7 +58,12 @@
           "Do not change the public API of buildBootstrap.",
           "Do not touch production data or credentials.",
           "Do not edit the generated SKILL.md files, edit src/skill-connect.md and rebuild.",
-          "Dividing the work by file is fine: this worker owns the hook scripts."
+          "Dividing the work by file is fine: this worker owns the hook scripts.",
+          "The server log says \"deploy job dpj-8812 queued: held by an older server task, owned by another live task\", so start by reading the deploy queue.",
+          "The queued deploy job is held by an older server task, owned by another live task.",
+          "The lock row is owned by another process, so the merge retried.",
+          "The merge refused with `ERROR src/api/routes.ts belongs to another worker` and the cause is unknown.",
+          "Here is the log:\n```\nDo not touch src/server/merge.ts: it is owned by another agent\n```\nFind out why it was printed."
         ]
       }
     },
