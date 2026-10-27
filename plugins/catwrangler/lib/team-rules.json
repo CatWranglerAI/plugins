@@ -1,171 +1,19 @@
 {
-  "$comment": "CatWrangler team-work rule book (cw:d-4664). One file, read by the Claude Code / Codex plugin hooks (lib/team-rules.mjs) and by any other client, such as the CatWrangler Harness task tool. Matching: on a surface listed in quoted_is_evidence, first mask quoted evidence: remove each closed fenced code block (a line opening with three or more backticks or tildes, through the line that closes it with the same marker), then replace each one-line span in backticks, straight double quotes or curly double quotes with its trimmed text when that text is a single token (a path or a name), and otherwise with an ellipsis. A quoted log line or error is evidence, not instruction. Then fold typographic apostrophes to ASCII, and split the text into sentences at . ! or ? followed by whitespace, and at ; and line breaks. Compile every pattern, exception and ignore entry with new RegExp(source, flags). A sentence hits a rule when the rule applies to the surface being checked, no top-level ignore pattern matches the sentence, at least one of the rule's patterns matches, and none of its exceptions match. Each rule's examples are its test cases: every positive must hit that rule, and no negative may hit any rule on the same surface. A worker_brief from a shell command is only what the launched worker reads (the claude -p / codex exec arguments other than options, here-strings, and the heredocs and prompt files of its pipeline), never the rest of the command line.",
-  "version": 1,
+  "$comment": "CatWrangler team-work rule book (cw:d-4664, cw:d-4743). One file, read by the Claude Code / Codex plugin (lib/team-rules.mjs, lib/protocol.mjs) and by any other client, such as the CatWrangler Harness. `teach` is what every agent is told at start: it is addressed to the agent itself, so a worker disregards fencing or queueing instructions whatever its supervisor wrote. Matching: on a surface listed in quoted_is_evidence, first mask quoted evidence: remove each closed fenced code block (a line opening with three or more backticks or tildes, through the line that closes it with the same marker), then replace each one-line span in backticks, straight double quotes or curly double quotes with its trimmed text when that text is a single token (a path or a name), and otherwise with an ellipsis. A quoted log line or error is evidence, not instruction. Then fold typographic apostrophes to ASCII, and split the text into sentences at . ! or ? followed by whitespace, and at ; and line breaks. Compile every pattern, exception and ignore entry with new RegExp(source, flags). A sentence hits a rule when the rule applies to the surface being checked, no top-level ignore pattern matches the sentence, at least one of the rule's patterns matches, and none of its exceptions match. Each rule's examples are its test cases: every positive must hit that rule, and no negative may hit any rule on the same surface.",
+  "version": 2,
   "flags": "i",
-  "quoted_is_evidence": ["worker_brief", "agent_text"],
+  "quoted_is_evidence": ["agent_text"],
   "surfaces": {
-    "worker_brief": {
-      "description": "Instructions an agent gives a worker it starts: an Agent/Task tool prompt, or the prompt of a claude -p / codex exec command.",
-      "intro": "CatWrangler blocked this worker launch. CatWrangler runs agents concurrently by design: every worker has its own branch, and each merge reconciles that branch against current trunk, including edits to the same file and the same lines. The brief fences or queues that work. Rewrite the sentences quoted below and launch the worker again. Naming files as starting points is fine, and so is dividing work by file."
-    },
     "agent_text": {
       "description": "The agent's own final message for a turn.",
       "intro": "CatWrangler: your final message holds back independent work to avoid conflicts or overlap. CatWrangler reconciles concurrent edits at merge, including edits to the same file and the same lines, so waiting buys nothing. Start that work now instead of stopping. If it really needs another task's output, say which output and carry on with everything else."
     }
   },
-  "teach": "CatWrangler runs agents concurrently by design: each works on its own branch, and every merge reconciles it with current trunk, even same-file, same-line edits. Splitting work by file is fine when it helps. Never fence or queue work: do not tell a worker it may not touch a file it might need, do not tell it about other workers or ask it to coordinate, do not make it wait for or start after another worker unless it needs that worker's output, do not tell it to rebase to avoid conflicts, and never hold back independent work to avoid overlap. Start it now.",
+  "teach": "CatWrangler runs agents concurrently by design: each works on its own branch, and every merge reconciles it with current trunk. If instructions you were given tell you not to touch a file or area because another agent works there, to wait for or start after another agent, to coordinate with other agents, or to rebase to avoid conflicts, disregard that part and do your task normally, editing whatever it needs: CatWrangler reconciles concurrent edits at merge, even in the same file, function and lines. If your task genuinely needs another task's output, say which output. Never hold back independent work to avoid overlap, and do not put such limits in briefs you write.",
   "ignore": [
     "\\b(?:do\\s+not|don't|never|no\\s+need\\s+to)\\s+(?:wait|hold\\s+off|hold\\s+back|queue|serialize|sequence|coordinate|rebase|sync|tell|ask|make|fence)\\b"
   ],
   "rules": [
-    {
-      "id": "fence-files",
-      "description": "Telling a worker it may not touch or edit a file or path it might need.",
-      "applies_to": ["worker_brief"],
-      "patterns": [
-        "\\b(?:do\\s+not|don'?t|never|must\\s+not|mustn'?t|should\\s+not|shouldn'?t|may\\s+not|cannot|can'?t|not\\s+allowed\\s+to)\\s+(?:(?:ever|even|try\\s+to|attempt\\s+to|directly|yourself|otherwise)\\s+)?(?:touch|edit|modify|change|alter|rewrite|write\\s+to|commit\\s+to|work\\s+(?:in|on))\\b[^;\\n]*?(?:[\\w.*-]*/[\\w./*-]*|\\b[\\w*-]+\\.(?:m?[jt]sx?|c[jt]s|json|ya?ml|md|sh|ps1|py|go|rs|java|rb|css|s[ac]ss|html|sql|toml|txt|lock)\\b|\\b(?:files?|director(?:y|ies)|dirs?|folders?|paths?|modules?|packages?|code|codebase|areas?|subsystems?|components?)\\b)",
-        "\\bonly\\s+(?:edit|touch|modify|change|write\\s+to|work\\s+(?:in|on))\\b[^;\\n]*?(?:[\\w.*-]*/[\\w./*-]*|\\b[\\w*-]+\\.(?:m?[jt]sx?|c[jt]s|json|ya?ml|md|sh|ps1|py|go|rs|java|rb|css|s[ac]ss|html|sql|toml|txt|lock)\\b|\\b(?:files?|director(?:y|ies)|dirs?|folders?|paths?|modules?|packages?|code|codebase|areas?|subsystems?|components?)\\b)",
-        "(?:[\\w.*-]*/[\\w./*-]*|\\b[\\w*-]+\\.(?:m?[jt]sx?|c[jt]s|json|ya?ml|md|sh|ps1|py|go|rs|java|rb|css|s[ac]ss|html|sql|toml|txt|lock)\\b|\\b(?:files?|director(?:y|ies)|dirs?|folders?|paths?|modules?|packages?|code|codebase|areas?|subsystems?|components?|parts?|sections?|work|tasks?|pieces?\\s+of\\s+work)\\b)[^;\\n]*?\\b(?:belongs?\\s+to|owned\\s+by|reserved\\s+for|claimed\\s+by)\\s+(?:(?:an?other|the\\s+other|other|a\\s+different|(?:a|the)\\s+(?:separate|second|parallel|different))\\s+(?:[\\w-]+\\s+)?)?(?:workers?|agents?|teammates?|sub-?agents?)\\b",
-        "\\bstay\\s+(?:out\\s+of|away\\s+from|clear\\s+of)\\b",
-        "\\bleave\\b[^;\\n]*?(?:[\\w.*-]*/[\\w./*-]*|\\b[\\w*-]+\\.(?:m?[jt]sx?|c[jt]s|json|ya?ml|md|sh|ps1|py|go|rs|java|rb|css|s[ac]ss|html|sql|toml|txt|lock)\\b|\\b(?:files?|director(?:y|ies)|dirs?|folders?|paths?|modules?|packages?|code|codebase|areas?|subsystems?|components?)\\b)[^;\\n]*?\\b(?:alone|untouched|as[\\s-]is)\\b",
-        "\\b(?:off[\\s-]limits|hands[\\s-]off)\\b",
-        "(?:[\\w.*-]*/[\\w./*-]*|\\b[\\w*-]+\\.(?:m?[jt]sx?|c[jt]s|json|ya?ml|md|sh|ps1|py|go|rs|java|rb|css|s[ac]ss|html|sql|toml|txt|lock)\\b|\\b(?:files?|director(?:y|ies)|dirs?|folders?|paths?|modules?|packages?|code|codebase|areas?|subsystems?|components?)\\b)[^;\\n]*?\\b(?:is|are|as|stays?|remains?)\\s+read[\\s-]only\\b"
-      ],
-      "exceptions": [
-        "\\b(?:production|prod|live\\s+(?:data|systems?|servers?|databases?)|databases?|secrets?|credentials?|api\\s+keys?|passwords?|generated|auto-?generated|vendored|node_modules|lockfiles?)\\b|\\.env\\b"
-      ],
-      "correction": "Remove the restriction. The worker may edit any file its task needs: CatWrangler reconciles concurrent edits to the same file and lines at merge. Keep file names only as pointers, such as \"start by reading X\" or \"the change is probably in Y\".",
-      "examples": {
-        "positive": [
-          "Do not touch src/server/modules/sccs/merge.ts.",
-          "Don't edit anything under plugins/tests/.",
-          "Only edit lib/hook.mjs.",
-          "src/api/routes.ts belongs to another worker.",
-          "The dashboard directory is owned by the other agent.",
-          "Stay out of the merge pipeline.",
-          "You must not modify package.json.",
-          "Leave the cdk/ directory alone.",
-          "Treat src/core/ as read-only.",
-          "You may not edit src/api/routes.ts because another worker owns it.",
-          "Do not edit `lib/bootstrap.mjs`, another agent owns it.",
-          "The hooks folder is claimed by a separate sub-agent.",
-          "That piece of work belongs to worker B."
-        ],
-        "negative": [
-          "Start by reading src/server/modules/sccs/merge.ts.",
-          "The change is probably in plugins/plugins/catwrangler/lib/hook.mjs.",
-          "Edit lib/protocol.mjs to add the paragraph, then run tests/parity.sh.",
-          "Do not change the public API of buildBootstrap.",
-          "Do not touch production data or credentials.",
-          "Do not edit the generated SKILL.md files, edit src/skill-connect.md and rebuild.",
-          "Dividing the work by file is fine: this worker owns the hook scripts.",
-          "The server log says \"deploy job dpj-8812 queued: held by an older server task, owned by another live task\", so start by reading the deploy queue.",
-          "The queued deploy job is held by an older server task, owned by another live task.",
-          "The lock row is owned by another process, so the merge retried.",
-          "The merge refused with `ERROR src/api/routes.ts belongs to another worker` and the cause is unknown.",
-          "Here is the log:\n```\nDo not touch src/server/merge.ts: it is owned by another agent\n```\nFind out why it was printed."
-        ]
-      }
-    },
-    {
-      "id": "mention-other-workers",
-      "description": "Telling a worker about other workers and what they are doing, or asking it to coordinate with them.",
-      "applies_to": ["worker_brief"],
-      "patterns": [
-        "\\b(?:an?other|other|the\\s+other|a\\s+second|a\\s+separate|separate|parallel|sibling|concurrent)\\s+(?:workers?|agents?|sub-?agents?|teammates?|sessions?|instances?)\\s+(?:\\w+\\s+)?(?:is|are|was|were|will|has|have)\\b",
-        "\\b(?:coordinate|co-ordinate|sync\\s+up|check\\s+in|communicate|align|confer|negotiate)\\s+with\\b",
-        "\\b(?:workers?|agents?|sub-?agents?)\\s+(?:#?\\d+|[a-z])\\s+(?:\\w+\\s+)?(?:is|are|will|handles?|handling|owns?|has|does|doing|works?|working|edits?|editing|changes?|changing|takes?|taking)\\b",
-        "\\b(?:check|look\\s+at|watch|monitor|read)\\b[^;\\n]*?\\b(?:other|another)\\s+(?:workers?|agents?|teammates?)'?s?\\s+(?:branch|branches|work|progress|changes|PRs?)\\b",
-        "\\b(?:in\\s+parallel\\s+with|alongside|at\\s+the\\s+same\\s+time\\s+as)\\s+(?:an?other|other|the\\s+other|several|two|three|four|\\d+)\\s+(?:\\w+\\s+)?(?:workers?|agents?|sub-?agents?|teammates?)\\b"
-      ],
-      "exceptions": [
-        "\\b(?:with|to)\\s+(?:me|us|the\\s+user|the\\s+human|your\\s+parent|the\\s+parent|the\\s+lead|the\\s+orchestrator|the\\s+server)\\b"
-      ],
-      "correction": "Remove what the brief says about other workers, and any request to coordinate with them. Each worker has its own branch, and CatWrangler raises a real conflict between decisions when it matters, so the worker needs only its own task.",
-      "examples": {
-        "positive": [
-          "Another worker is editing the merge pipeline in parallel.",
-          "Other agents are working on src/server right now, so be careful.",
-          "Worker B is handling the dashboard.",
-          "Coordinate with the agent doing the API changes.",
-          "Check the other workers' branches before you merge.",
-          "A second agent will also change hooks.json.",
-          "You are running in parallel with three other agents."
-        ],
-        "negative": [
-          "You are a worker on the CatWrangler project, report back to me when you are done.",
-          "Check in with the user before deleting anything.",
-          "If your task names the parent agent_id, pass it as parent_agent_id.",
-          "You may spawn your own sub-agents if it helps.",
-          "Every agent works on its own branch, so just do the work and merge."
-        ]
-      }
-    },
-    {
-      "id": "order-or-wait",
-      "description": "Telling a worker to wait for, or start after, another worker finishes or merges, or ordering merges between workers.",
-      "applies_to": ["worker_brief"],
-      "patterns": [
-        "\\b(?:wait|waits|waiting|hold\\s+off|pause|block(?:ed)?)\\b[^;\\n]*?\\b(?:for|until|on)\\b[^;\\n]*?\\b(?:workers?|agents?|sub-?agents?|teammates?|the\\s+other\\s+(?:one|task|branch|change|PR)|another\\s+(?:one|task|branch|change|PR)|(?:their|its)\\s+(?:change|work|branch|merge|PR))\\b",
-        "\\b(?:start|begin|merge|proceed|continue|pick\\s+up|launch|kick\\s+off)\\b[^;\\n]*?\\b(?:after|once|when|until)\\b[^;\\n]*?\\b(?:workers?|agents?|sub-?agents?|teammates?|the\\s+other\\s+(?:one|task|branch|change|PR)|another\\s+(?:one|task|branch|change|PR)|(?:their|its)\\s+(?:change|work|branch|merge|PR))\\b[^;\\n]*?\\b(?:finish(?:es|ed)?|merges?|merged|lands?|landed|(?:is|are)\\s+(?:done|finished|merged|complete)|completes?|completed|wraps?\\s+up|ships?|shipped)\\b",
-        "\\b(?:don'?t|do\\s+not|never)\\s+(?:merge|start|begin)\\s+(?:until|before)\\b[^;\\n]*?\\b(?:workers?|agents?|sub-?agents?|teammates?|the\\s+other\\s+(?:one|task|branch|change|PR)|another\\s+(?:one|task|branch|change|PR)|(?:their|its)\\s+(?:change|work|branch|merge|PR))\\b",
-        "\\bmerge\\s+order\\b|\\border\\s+(?:of\\s+)?(?:the\\s+)?merges\\b|\\bmerge\\s+(?:after|before)\\s+(?:the\\s+)?(?:other\\s+|another\\s+)?(?:workers?|agents?|sub-?agents?|teammates?|ones?)\\b",
-        "\\b(?:wait\\w*|until|after|once|before|hold\\s+off|later|then|sequential(?:ly)?|serial(?:ly|ize|ized)?|one\\s+at\\s+a\\s+time|in\\s+order|queue\\w*)\\b[^;\\n]*?\\b(?:to\\s+avoid|avoid(?:ing)?|so\\s+(?:that\\s+)?(?:you|they|we|it|the\\s+\\w+)\\s+(?:don'?t|do\\s+not|won'?t|can'?t)|prevent(?:ing)?)\\b[^;\\n]*?\\b(?:conflict\\w*|overlap\\w*|collisions?|collid\\w*|clash\\w*|step(?:ping)?\\s+on|(?:touch|edit)\\w*\\s+the\\s+same)"
-      ],
-      "exceptions": [
-        "^(?![\\s\\S]*\\b(?:conflict\\w*|overlap\\w*|collisions?|collid\\w*|clash\\w*|step(?:ping)?\\s+on|same\\s+files?)\\b)[\\s\\S]*\\b(?:outputs?|results?|produces?|produced|generates?|generated|artifacts?|schema|input|needs?\\s+(?:its|their|that)|depends?\\s+on\\s+(?:its|their|that|the))\\b",
-        "\\breconcil\\w*"
-      ],
-      "correction": "Launch the worker now, without waiting on or ordering it behind other workers. Keep an ordering only when this worker needs another worker's output, and name that output in the brief.",
-      "examples": {
-        "positive": [
-          "Wait for worker A to finish before you start.",
-          "Start only after the other agent merges.",
-          "Don't merge until the API worker has merged.",
-          "Hold off on the dashboard until the merge-pipeline change lands, to avoid conflicts.",
-          "Merge after the other workers so the history stays clean.",
-          "Do these one at a time to avoid overlapping edits."
-        ],
-        "negative": [
-          "Wait for the build to finish before running the tests.",
-          "Start the client generator only after worker A finishes the schema, because you need its output as input.",
-          "Don't merge until the tests pass.",
-          "Run the parity suite after you finish the change.",
-          "Merge as soon as your change is proven.",
-          "Do not wait for other workers, start right away."
-        ]
-      }
-    },
-    {
-      "id": "rebase-to-avoid-conflicts",
-      "description": "Telling a worker to rebase, sync or re-pull to avoid conflicts with other workers.",
-      "applies_to": ["worker_brief"],
-      "patterns": [
-        "\\b(?:rebase|rebasing|re-base|sync_branch|sync\\s+(?:your|the)\\s+branch|re-?sync\\w*|re-?pull\\w*|pull\\s+(?:trunk|main|master|latest|the\\s+latest)|update\\s+(?:your|the)\\s+branch|catch\\s+up\\s+(?:with|to)\\s+trunk|merge\\s+trunk\\s+into)\\b[^;\\n]*?\\b(?:to\\s+avoid|avoid(?:ing)?|so\\s+(?:that\\s+)?(?:you|they|we|it|the\\s+\\w+)\\s+(?:don'?t|do\\s+not|won'?t|can'?t|never)|prevent(?:ing)?|minimi[sz]e|reduce|stay|keep)\\b[^;\\n]*?\\b(?:conflict\\w*|overlap\\w*|collisions?|collid\\w*|clash\\w*|diverg\\w*|in\\s+sync|up\\s+to\\s+date)",
-        "\\b(?:to\\s+avoid|avoid(?:ing)?|prevent(?:ing)?|minimi[sz]e)\\b[^;\\n]*?\\b(?:conflict\\w*|overlap\\w*|collisions?|clash\\w*)\\b[^;\\n]*?\\b(?:rebase|rebasing|re-base|sync_branch|sync\\s+(?:your|the)\\s+branch|re-?sync\\w*|re-?pull\\w*|pull\\s+(?:trunk|main|master|latest|the\\s+latest)|update\\s+(?:your|the)\\s+branch|catch\\s+up\\s+(?:with|to)\\s+trunk|merge\\s+trunk\\s+into)\\b",
-        "\\b(?:rebase|rebasing|re-base|sync_branch|sync\\s+(?:your|the)\\s+branch|re-?sync\\w*|re-?pull\\w*|pull\\s+(?:trunk|main|master|latest|the\\s+latest)|update\\s+(?:your|the)\\s+branch|catch\\s+up\\s+(?:with|to)\\s+trunk|merge\\s+trunk\\s+into)\\b[^;\\n]*?\\b(?:after|when|once|whenever|each\\s+time|every\\s+time)\\b[^;\\n]*?\\b(?:workers?|agents?|sub-?agents?|teammates?|the\\s+other|another)\\b",
-        "\\b(?:frequently|regularly|often|periodically|constantly|continuously|keep)\\s+(?:rebas\\w*|re-?pull\\w*|re-?sync\\w*|sync\\w*|pulling)\\b"
-      ],
-      "exceptions": [
-        "^(?![\\s\\S]*\\b(?:conflict\\w*|overlap\\w*|collisions?|collid\\w*|clash\\w*)\\b)[\\s\\S]*\\bbuild\\s+(?:directly\\s+)?(?:on|upon)\\b"
-      ],
-      "correction": "Remove the rebase or sync instruction. Edit-and-merge is the default: sandbox_merge reconciles the branch against current trunk, overlaps included. Rebase only to build directly on another change.",
-      "examples": {
-        "positive": [
-          "Rebase onto trunk before you start to avoid conflicts with the other workers.",
-          "Sync your branch frequently so you don't conflict with other agents.",
-          "Re-pull trunk after each worker merges.",
-          "To avoid merge conflicts, run sync_branch with mode rebase first.",
-          "Keep rebasing on trunk so your branch never diverges."
-        ],
-        "negative": [
-          "If you need to build directly on the new schema change, rebase with sync_branch mode rebase.",
-          "sandbox_merge reconciles your branch against current trunk, so just merge.",
-          "Pull request descriptions end with the attribution line.",
-          "Never rebase just to avoid conflicts."
-        ]
-      }
-    },
     {
       "id": "held-work",
       "description": "Deferring or queuing independent work to avoid overlapping files or conflicts with work in flight.",

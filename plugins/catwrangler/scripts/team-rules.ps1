@@ -1,6 +1,5 @@
-# Native Windows half of the team-rules hook (cw:d-4664): PreToolUse and Stop.
-# Fail-open: only the adapter's deliberate exit 2 (a rule hit on a worker brief)
-# blocks. Any other problem prints {} and exits 0, so a broken hook never stops work.
+# Native Windows half of the team-rules hook (cw:d-4664, cw:d-4743): Stop.
+# Fail-open: any problem prints {} and exits 0, so a broken hook never stops work.
 param(
   [Parameter(Position = 0)]
   [string] $HostName = 'claude'
@@ -28,27 +27,18 @@ try {
   $start.CreateNoWindow = $true
   $start.RedirectStandardInput = $true
   $start.RedirectStandardOutput = $true
-  $start.RedirectStandardError = $true
   $utf8 = New-Object System.Text.UTF8Encoding($false)
   $start.StandardInputEncoding = $utf8
   $start.StandardOutputEncoding = $utf8
-  $start.StandardErrorEncoding = $utf8
 
   $process = New-Object System.Diagnostics.Process
   $process.StartInfo = $start
   [void] $process.Start()
-  # Read stderr concurrently: a long block message must not stall the child
-  # while stdout is being drained.
-  $teamRulesErr = $process.StandardError.ReadToEndAsync()
   $process.StandardInput.Write($teamRulesPayload)
   $process.StandardInput.Close()
   $teamRulesOut = $process.StandardOutput.ReadToEnd()
   $process.WaitForExit()
 
-  if ($process.ExitCode -eq 2) {
-    [Console]::Error.Write($teamRulesErr.Result)
-    exit 2
-  }
   if ($process.ExitCode -ne 0 -or [string]::IsNullOrEmpty($teamRulesOut)) {
     $teamRulesOut = '{}'
   }

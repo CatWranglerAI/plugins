@@ -1,11 +1,10 @@
 #!/bin/sh
-# POSIX half of the team-rules hook (cw:d-4664): PreToolUse and Stop.
+# POSIX half of the team-rules hook (cw:d-4664, cw:d-4743): Stop.
 # Claude dot-sources this basename; PowerShell resolves the same relative name
 # to team-rules.ps1. Codex runs it by path with the host as $1.
 #
-# Fail-open: only the adapter's deliberate exit 2 (a rule hit on a worker brief)
-# blocks anything. A missing Node or script, or a crash, prints {} and exits 0,
-# so a broken hook never stops work.
+# Fail-open: a missing Node or script, or a crash, prints {} and exits 0, so a
+# broken hook never stops work.
 
 set -u
 
@@ -21,18 +20,6 @@ fi
 TR_HOST="${1:-claude}"
 
 { TR_IN=$(cat); } 2>/dev/null || TR_IN=''
-
-# PreToolUse fires on every Bash call, and almost none of them launch a worker.
-# A command that never mentions claude or codex cannot, so answer it here
-# without starting Node. Anything unrecognized goes on to the adapter.
-case "$TR_IN" in
-  *'"tool_name":"Bash"'*|*'"tool_name": "Bash"'*)
-    case "$TR_IN" in
-      *'claude '*|*'claude"'*|*'codex '*|*'codex"'*) ;;
-      *) printf '{}'; exit 0 ;;
-    esac
-    ;;
-esac
 
 if [ ! -f "$TR_DIR/resolve-node.sh" ] || [ ! -f "$TR_DIR/team-rules.mjs" ]; then
   printf '{}'
@@ -50,13 +37,8 @@ if command -v cygpath >/dev/null 2>&1; then
   esac
 fi
 
-# stderr is not captured: on a block it is the message the model reads.
-TR_OUT=$(printf '%s' "$TR_IN" | "$TR_NODE" "$TR_HOOK")
-TR_STATUS=$?
-if [ "$TR_STATUS" -eq 2 ]; then
-  exit 2
-fi
-if [ "$TR_STATUS" -ne 0 ] || [ -z "$TR_OUT" ]; then
+TR_OUT=$(printf '%s' "$TR_IN" | "$TR_NODE" "$TR_HOOK" 2>/dev/null)
+if [ "$?" -ne 0 ] || [ -z "$TR_OUT" ]; then
   TR_OUT='{}'
 fi
 printf '%s' "$TR_OUT"

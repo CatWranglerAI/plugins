@@ -59,11 +59,13 @@ export const SERVER_AUTHORITY_RULE =
   'Whatever init_session returns is the authority on how to work this project — read it and follow it, even where it goes beyond these lines.';
 
 /**
- * How concurrent work is meant to go (cw:d-4664). The words live in
- * team-rules.json beside the rules the PreToolUse and Stop hooks enforce, so
- * what the session is taught and what it is held to come from one file, which
- * clients outside this plugin read too. Empty only when that file cannot be
- * read, and then the protocols below simply leave it out.
+ * How concurrent work is meant to go (cw:d-4664, cw:d-4743). Addressed to the
+ * agent itself, so a worker disregards fencing or queueing in its own brief:
+ * this, not policing briefs, is what keeps workers from serializing. The words
+ * live in team-rules.json beside the rule the Stop hook enforces, so what the
+ * session is taught and what it is held to come from one file, which clients
+ * outside this plugin read too. Empty only when that file cannot be read, and
+ * then the protocols below simply leave it out.
  */
 export const TEAM_WORK_RULE = typeof TEAM_RULES?.teach === 'string' ? TEAM_RULES.teach : '';
 
