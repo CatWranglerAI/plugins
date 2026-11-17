@@ -34,6 +34,7 @@
  */
 
 import { findRegistry, findCustomerRegistry, readRegistryFile } from './registry.mjs';
+import { findStaleSkillCopies, staleSkillNotice } from './stale-skills.mjs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -331,9 +332,12 @@ export function buildBootstrap({ cwd, source }) {
         ? [`  - From ${found.path} — your home registry, used where no project claims the directory.`]
         : [];
 
+  // cw:d-5114: old hand-installed copies of skills the plugin now ships.
+  const stale = staleSkillNotice(findStaleSkillCopies({ cwd }));
+
   const systemMessage =
     projects.length === 0
-      ? ['', '', `CatWrangler workspace detected (${server}).`, ...origin, '  - Retrieving your projects…'].join('\n')
+      ? ['', '', `CatWrangler workspace detected (${server}).`, ...origin, '  - Retrieving your projects…', ...stale].join('\n')
       : [
           '',
           '',
@@ -346,6 +350,7 @@ export function buildBootstrap({ cwd, source }) {
           // "manage projects" read as "connect to a project", which is the one
           // thing this line is not for — the session above already did that.
           '  - Run /catwrangler:connect to connect or disconnect projects.',
+          ...stale,
         ].join('\n');
 
   return { additionalContext: lines.join('\n'), systemMessage };
