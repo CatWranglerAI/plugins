@@ -14,6 +14,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+/** Skill names bundled by the plugin; matching local copies are candidates for stale-copy notices. */
 export const SHIPPED_SKILLS = ['catteam', 'handoff', 'redteam'];
 
 function candidatePaths(name, cwd, home) {

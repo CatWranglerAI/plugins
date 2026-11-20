@@ -11,6 +11,8 @@
  *            SubagentStart: `agent_id` + `agent_type` instead, and no `source`.
  *            PostToolUseFailure (Claude Code, cw:d-4453): `tool_name`, `error`,
  *            `duration_ms`, `is_interrupt`; read whole via readHookPayload.
+ *            PreToolUse (cw:d-5242): `tool_name`, `tool_input` (a shell tool's
+ *            command), read whole via readHookPayload.
  *   stdout = JSON: {
  *     systemMessage?: string,              // top-level: shown to the USER
  *     hookSpecificOutput?: {               // event-scoped: read by the MODEL
@@ -105,6 +107,14 @@ export function emitSubagentStart(out) {
 /** The PostToolUseFailure mirror (cw:d-4453). `null` is the usual answer: `{}`. */
 export function emitPostToolUseFailure(out) {
   emitHookOutput('PostToolUseFailure', out);
+}
+
+/**
+ * The PreToolUse mirror (cw:d-5242). Context only: this never emits a
+ * permissionDecision, so the tool call always runs. `null` is the usual answer: `{}`.
+ */
+export function emitPreToolUse(out) {
+  emitHookOutput('PreToolUse', out);
 }
 
 /** Shared envelope writer. `hookEventName` is the only per-event difference. */

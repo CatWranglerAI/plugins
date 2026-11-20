@@ -37,13 +37,13 @@ Before splitting, glance at the newest decisions on the graph (`search_decisions
 2. Launch every worker of a wave in ONE shell call as a background task, one job per worker with `&`, then `wait`. Use the **absolute path** to `claude` (`which claude` first; background shells lack its PATH). Run from the connected workspace so the plugin config applies:
 ```
 cd "<connected workspace>" && CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 \
-  MCP_TIMEOUT=600000 MCP_TOOL_TIMEOUT=600000 \
+  MCP_TIMEOUT=600000 MCP_TOOL_TIMEOUT=600000 CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT=1800000 \
   /abs/path/to/claude -p "$(cat /tmp/catteam-<run>/<worker>/prompt.md)" \
   --allowedTools "<CatWrangler tool prefix>*" \
   > /tmp/catteam-<run>/<worker>/out.json 2> /tmp/catteam-<run>/<worker>/err.log &
 ```
 For `<CatWrangler tool prefix>`, copy the prefix your own CatWrangler tools carry in your tool list (it starts with `mcp__plugin_`); scope `--allowedTools` to the CatWrangler tools the worker needs. Do not use `--dangerously-skip-permissions`.
-The two MCP timeout variables are load-bearing: without them a blocking `await_job` on a long merge dies at the default transport timeout and the print-mode worker exits early. A worker whose last line says it is "waiting" is dead, not waiting.
+The three MCP timeout variables are load-bearing: without `MCP_TIMEOUT` and `MCP_TOOL_TIMEOUT` a blocking `await_job` on a long merge dies at the default transport timeout and the print-mode worker exits early. `MCP_TOOL_TIMEOUT` does not cover Claude Code's separate client-side idle timeout, which aborts a tool call that sends no response or progress for too long; `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` does. A worker cut off by it logs an error like: `MCP server "plugin:catwrangler-internal:catwrangler-internal" tool "await_job" sent no response or progress for 1031s; aborting. If this server is configured in your MCP settings, set a per-server "timeout" (ms) to allow longer silent runs for just this server; otherwise set CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT (ms) globally (0 disables).` On 2026-11-18 a worker launched without it hit that twice during a long merge, exited, and orphaned its merge job. The 30-minute value is bounded on purpose, not `0`, so a genuinely hung call still ends; it is a client watchdog and limits nothing server-side. A worker whose last line says it is "waiting" is dead, not waiting.
 3. **Tripwire:** each worker's first report line is its `agent_id`. Collect them and prove they are all distinct, and different from yours, before trusting any concurrent work. If any repeat, stop those workers and report.
 
 ### The brief (prompt.md template)
